@@ -69,6 +69,7 @@ export function RegistrationView({
   // Form inputs states: User
   const [usrName, setUsrName] = useState<string>('');
   const [usrEmail, setUsrEmail] = useState<string>('');
+  const [usrPassword, setUsrPassword] = useState<string>('123456');
   const [usrRole, setUsrRole] = useState<UserRole>('contractor');
   const [usrCompId, setUsrCompId] = useState<string>('');
 
@@ -142,13 +143,15 @@ export function RegistrationView({
       email: usrEmail,
       role: usrRole,
       companyId: usrRole === 'contractor' ? usrCompId : undefined,
-      active: true
+      active: true,
+      password: usrPassword || '123456'
     };
     onAddUser(payload);
 
     // Reset user form
     setUsrName('');
     setUsrEmail('');
+    setUsrPassword('123456');
     alert('Usuário cadastrado com sucesso!');
   };
 
@@ -428,6 +431,18 @@ export function RegistrationView({
                     onChange={(e) => setUsrEmail(e.target.value)}
                     placeholder="ricardo@empresa.com"
                     className="border border-gray-200 rounded-lg p-2 bg-gray-50 focus:bg-white outline-hidden focus:border-blue-500 text-xs"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1 text-xs">
+                  <label className="font-bold text-gray-600">Senha de Acesso *</label>
+                  <input
+                    type="text"
+                    required
+                    value={usrPassword}
+                    onChange={(e) => setUsrPassword(e.target.value)}
+                    placeholder="Senha de acesso"
+                    className="border border-gray-200 rounded-lg p-2 bg-gray-50 focus:bg-white outline-hidden focus:border-blue-500 text-xs text-gray-800"
                   />
                 </div>
 

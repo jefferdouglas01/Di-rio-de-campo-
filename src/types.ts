@@ -12,6 +12,7 @@ export interface User {
   role: UserRole;
   companyId?: string; // If contractor, restricted to this company
   active: boolean;
+  password?: string;
 }
 
 export interface Company {

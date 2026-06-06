@@ -21,6 +21,7 @@ import { RdoDetailView } from './components/RdoDetailView';
 import { MeasurementView } from './components/MeasurementView';
 import { RegistrationView } from './components/RegistrationView';
 import { ReportsView } from './components/ReportsView';
+import { LoginView } from './components/LoginView';
 
 // Icons
 import { 
@@ -47,6 +48,7 @@ export default function App() {
   const [usersList, setUsersList] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
   // Navigation states
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -85,19 +87,26 @@ export default function App() {
 
     // Users
     const localUsers = localStorage.getItem('rdo_db_users');
+    let dbUsers: User[] = [];
     if (localUsers) {
-      const parsedUsers = JSON.parse(localUsers) as User[];
-      setUsersList(parsedUsers);
-      
-      // Select the first active user
-      const savedUserEmail = localStorage.getItem('rdo_active_user_email');
-      const found = parsedUsers.find(u => u.email === savedUserEmail) || parsedUsers[0];
-      setCurrentUser(found);
+      dbUsers = JSON.parse(localUsers) as User[];
+      setUsersList(dbUsers);
     } else {
+      dbUsers = INITIAL_USERS;
       setUsersList(INITIAL_USERS);
-      setCurrentUser(INITIAL_USERS[0]); // Starts as Admin
       localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
-      localStorage.setItem('rdo_active_user_email', INITIAL_USERS[0].email);
+    }
+
+    // Check Login session
+    const savedUserEmail = localStorage.getItem('rdo_active_user_email');
+    const wasLoggedIn = localStorage.getItem('rdo_is_logged_in') === 'true';
+    const found = dbUsers.find(u => u.email === savedUserEmail);
+    if (wasLoggedIn && found) {
+      setCurrentUser(found);
+      setIsLoggedIn(true);
+    } else {
+      setCurrentUser(null);
+      setIsLoggedIn(false);
     }
 
     // Audit logs
@@ -112,7 +121,7 @@ export default function App() {
 
   // Utility to reload default seeds to resolve testing states
   const handleResetSystem = () => {
-    const isConfirm = window.confirm('Tem certeza de que deseja resetar os dados de simulação? Todas as suas alterações locais serão sobrepostas pelos dados iniciais padrão.');
+    const isConfirm = window.confirm('Tem certeza de que deseja resetar os dados? Todas as suas alterações locais serão limpas do banco de dados.');
     if (isConfirm) {
       localStorage.clear();
       setRdos(INITIAL_RDOS);
@@ -120,7 +129,8 @@ export default function App() {
       setContracts(INITIAL_CONTRACTS);
       setUsersList(INITIAL_USERS);
       setAuditLogs(INITIAL_AUDIT_LOGS);
-      setCurrentUser(INITIAL_USERS[0]);
+      setCurrentUser(null);
+      setIsLoggedIn(false);
       setActiveTab('dashboard');
       setViewingRdoId(null);
       setEditingRdoId(null);
@@ -130,28 +140,19 @@ export default function App() {
       localStorage.setItem('rdo_db_contracts', JSON.stringify(INITIAL_CONTRACTS));
       localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
       localStorage.setItem('rdo_db_audits', JSON.stringify(INITIAL_AUDIT_LOGS));
-      localStorage.setItem('rdo_active_user_email', INITIAL_USERS[0].email);
-      alert('Sistema resetado com sucesso!');
+      alert('Sistema resetado com sucesso! Por favor, faça login com a conta de Administrador.');
     }
   };
 
-  // Switch Active Tester Role
-  const handleRoleSwitch = (email: string) => {
-    const match = usersList.find(u => u.email === email);
-    if (match) {
-      setCurrentUser(match);
-      localStorage.setItem('rdo_active_user_email', email);
-      
-      // Close forms/details to avoid authorization state issues
-      setViewingRdoId(null);
-      setEditingRdoId(null);
-      setIsCreatingNewRdo(false);
-      
-      // Re-route if the contractor switches
-      if (match.role === 'contractor' && activeTab === 'cadastros') {
-        setActiveTab('dashboard');
-      }
-    }
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    localStorage.removeItem('rdo_is_logged_in');
+    localStorage.removeItem('rdo_active_user_email');
+    setViewingRdoId(null);
+    setEditingRdoId(null);
+    setIsCreatingNewRdo(false);
+    setActiveTab('dashboard');
   };
 
   // State synchronization writer to local storage
@@ -390,43 +391,68 @@ export default function App() {
     setEditingRdoId(null);
   };
 
+  // Strict Scope Isolation check
+  const isContractor = currentUser?.role === 'contractor';
+  const myCompanyId = currentUser?.companyId;
+
+  const filteredRdos = isContractor 
+    ? rdos.filter(r => r.companyId === myCompanyId)
+    : rdos;
+
+  const filteredCompanies = isContractor
+    ? companies.filter(c => c.id === myCompanyId)
+    : companies;
+
+  const filteredContracts = isContractor
+    ? contracts.filter(c => c.companyId === myCompanyId)
+    : contracts;
+
+  const filteredAuditLogs = isContractor
+    ? auditLogs.filter(a => {
+        const r = rdos.find(rdo => rdo.id === a.rdoId);
+        return r && r.companyId === myCompanyId;
+      })
+    : auditLogs;
+
+  const filteredUsersList = isContractor
+    ? usersList.filter(u => u.companyId === myCompanyId)
+    : usersList;
+
+  if (!isLoggedIn || !currentUser) {
+    return (
+      <LoginView
+        usersList={usersList}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setIsLoggedIn(true);
+          localStorage.setItem('rdo_active_user_email', user.email);
+          localStorage.setItem('rdo_is_logged_in', 'true');
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans antialiased text-gray-800" id="app-root-frame">
       
-      {/* 1. SUPERIOR TOP TESTER BANNER */}
-      <div className="bg-slate-900 border-b border-slate-950 px-5 py-2 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+      {/* 1. SUPERIOR TOP BANNER (CLEAN & PROFESSIONAL) */}
+      <div className="bg-slate-900 border-b border-slate-950 px-5 py-2.5 flex justify-between items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-300">
-            Ambiente Demonstrativo Multidisciplinar (Controle de Perfis)
+          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-355">
+            Painel RDO - Base Operacional Integrada
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-medium text-slate-400">Ver como usuário:</span>
-          {currentUser && (
-            <select
-              value={currentUser.email}
-              onChange={(e) => handleRoleSwitch(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-[11px] text-white p-1 rounded-md outline-hidden font-bold cursor-pointer hover:bg-slate-750"
-              id="role-tester-switcher"
-            >
-              {usersList.map((usr) => (
-                <option key={usr.id} value={usr.email}>
-                  {usr.name} — ({usr.role.toUpperCase()})
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Quick seed reinstaller */}
+          {/* Quick local database reset */}
           <button
             onClick={handleResetSystem}
-            className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-350 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-colors border border-slate-700 cursor-pointer"
-            title="Recomeçar simulação do estado inicial"
+            className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-colors border border-slate-700 cursor-pointer"
+            title="Deseja limpar todos os dados registrados?"
           >
             <RefreshCw className="w-3 h-3" />
-            <span>Resetar Dados</span>
+            <span>Limpar Banco Local</span>
           </button>
         </div>
       </div>
@@ -512,16 +538,25 @@ export default function App() {
 
           {/* Current log bottom flag */}
           {currentUser && (
-            <div className="p-4 border-t border-slate-950 bg-slate-950/20 text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center">
+            <div className="p-4 border-t border-slate-950 bg-slate-900/60 text-xs flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0">
                   {currentUser.name[0]}
                 </div>
                 <div className="min-w-0">
-                  <span className="font-bold text-white block truncate">{currentUser.name}</span>
-                  <span className="text-[10px] text-gray-400 block uppercase font-mono mt-0.5">{currentUser.role}</span>
+                  <span className="font-bold text-white block truncate text-[11px]">{currentUser.name}</span>
+                  <span className="text-[10px] text-slate-400 block uppercase font-mono mt-0.5">
+                    {currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'manager' ? 'Fiscal' : 'Contratada'}
+                  </span>
                 </div>
               </div>
+              <button 
+                onClick={handleLogout}
+                className="p-1.5 bg-slate-850 hover:bg-rose-950 hover:text-rose-350 text-slate-450 rounded-lg transition-colors cursor-pointer"
+                title="Sair do sistema"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           )}
         </aside>
@@ -531,37 +566,39 @@ export default function App() {
           
           {/* Overlay Detail View */}
           {viewingRdoId ? (() => {
-            const rdoSpec = rdos.find(r => r.id === viewingRdoId);
+            const rdoSpec = filteredRdos.find(r => r.id === viewingRdoId);
             return rdoSpec ? (
               <RdoDetailView
                 rdo={rdoSpec}
-                companies={companies}
-                contracts={contracts}
+                companies={filteredCompanies}
+                contracts={filteredContracts}
                 currentUser={currentUser!}
-                auditLogs={auditLogs}
+                auditLogs={filteredAuditLogs}
                 onBack={() => setViewingRdoId(null)}
                 onUpdateStatus={handleUpdateStatus}
                 onAdjustWorkerHours={handleAdjustWorkerHours}
               />
             ) : (
-              <div className="p-4 text-center">Ficha RDO não encontrada.</div>
+              <div className="p-4 text-center">Ficha RDO não encontrada ou restrita.</div>
             );
           })() : editingRdoId ? (() => {
-            const rdoSpecEdit = rdos.find(r => r.id === editingRdoId);
-            return (
+            const rdoSpecEdit = filteredRdos.find(r => r.id === editingRdoId);
+            return rdoSpecEdit ? (
               <RdoFormView
                 rdoToEdit={rdoSpecEdit}
-                companies={companies}
-                contracts={contracts}
+                companies={filteredCompanies}
+                contracts={filteredContracts}
                 currentUser={currentUser!}
                 onSave={handleSaveRdoRecord}
                 onCancel={handleCancelRdoForm}
               />
+            ) : (
+              <div className="p-4 text-center">RDO não encontrado para edição ou restrito.</div>
             );
           })() : isCreatingNewRdo ? (
             <RdoFormView
-              companies={companies}
-              contracts={contracts}
+              companies={filteredCompanies}
+              contracts={filteredContracts}
               currentUser={currentUser!}
               onSave={handleSaveRdoRecord}
               onCancel={handleCancelRdoForm}
@@ -571,9 +608,9 @@ export default function App() {
             <div id="tabs-central-hub animate-fadeIn">
               {activeTab === 'dashboard' && (
                 <DashboardView
-                  rdos={rdos}
-                  companies={companies}
-                  contracts={contracts}
+                  rdos={filteredRdos}
+                  companies={filteredCompanies}
+                  contracts={filteredContracts}
                   onSelectTab={setActiveTab}
                   onViewRdo={handleSelectRdoView}
                 />
@@ -581,9 +618,9 @@ export default function App() {
 
               {activeTab === 'rdos' && (
                 <RdoListView
-                  rdos={rdos}
-                  companies={companies}
-                  contracts={contracts}
+                  rdos={filteredRdos}
+                  companies={filteredCompanies}
+                  contracts={filteredContracts}
                   currentUser={currentUser!}
                   onViewRdo={handleSelectRdoView}
                   onEditRdo={handleInitRdoEdit}
@@ -594,9 +631,9 @@ export default function App() {
 
               {activeTab === 'medição' && (
                 <MeasurementView
-                  rdos={rdos}
-                  companies={companies}
-                  contracts={contracts}
+                  rdos={filteredRdos}
+                  companies={filteredCompanies}
+                  contracts={filteredContracts}
                   currentUser={currentUser!}
                   onCloseMeasurement={handleCloseMeasurementPeriod}
                   onUpdateRdoStatus={(id, st) => handleUpdateStatus(id, st, 'Fechamento de medição mensal automática.')}
@@ -605,9 +642,9 @@ export default function App() {
 
               {activeTab === 'cadastros' && (
                 <RegistrationView
-                  companies={companies}
-                  contracts={contracts}
-                  usersList={usersList}
+                  companies={filteredCompanies}
+                  contracts={filteredContracts}
+                  usersList={filteredUsersList}
                   currentUser={currentUser!}
                   onAddCompany={handleAddCompany}
                   onAddContract={handleAddContract}
@@ -620,10 +657,10 @@ export default function App() {
 
               {activeTab === 'relatórios' && (
                 <ReportsView
-                  rdos={rdos}
-                  companies={companies}
-                  contracts={contracts}
-                  auditLogs={auditLogs}
+                  rdos={filteredRdos}
+                  companies={filteredCompanies}
+                  contracts={filteredContracts}
+                  auditLogs={filteredAuditLogs}
                   currentUser={currentUser!}
                 />
               )}
