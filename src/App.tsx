@@ -422,11 +422,22 @@ export default function App() {
     return (
       <LoginView
         usersList={usersList}
+        companies={companies}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           setIsLoggedIn(true);
           localStorage.setItem('rdo_active_user_email', user.email);
           localStorage.setItem('rdo_is_logged_in', 'true');
+        }}
+        onRegisterUser={(user, newCompany) => {
+          if (newCompany) {
+            const updatedCompanies = [...companies, newCompany];
+            setCompanies(updatedCompanies);
+            localStorage.setItem('rdo_db_companies', JSON.stringify(updatedCompanies));
+          }
+          const updatedUsers = [...usersList, user];
+          setUsersList(updatedUsers);
+          localStorage.setItem('rdo_db_users', JSON.stringify(updatedUsers));
         }}
       />
     );
