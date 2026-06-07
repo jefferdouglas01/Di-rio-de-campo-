@@ -106,7 +106,6 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 sm:p-6 text-gray-100 font-sans" id="login-frame">
       <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden my-8">
-        
         {/* Decorative dynamic neon bar */}
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
 
@@ -114,7 +113,7 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
           <div className="inline-flex w-12 h-12 bg-blue-600/10 text-blue-500 rounded-2xl items-center justify-center ring-1 ring-blue-500/20 mx-auto">
             <HardHat className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-sans font-extrabold tracking-tight text-white block">
+          <h1 className="text-2xl font-sans font-extrabold tracking-tight text-white block font-sans">
             RDO & Medições
           </h1>
           <p className="text-xs text-slate-400">

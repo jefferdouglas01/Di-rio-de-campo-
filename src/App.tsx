@@ -411,14 +411,30 @@ export default function App() {
   };
 
   // 3. Workflow Status update with mandatory justification
-  const handleUpdateStatus = async (rdoId: string, newStatus: RdoStatus, justification: string, changes: ChangeLogItem[] = []) => {
+  const handleUpdateStatus = async (
+    rdoId: string, 
+    newStatus: RdoStatus, 
+    justification: string, 
+    changes: ChangeLogItem[] = [],
+    signatures?: {
+      approverSignature?: string;
+      executantSignature?: string;
+      approvalDate?: string;
+      executantDate?: string;
+    }
+  ) => {
     if (!currentUser) return;
 
     const originalRdo = rdos.find(r => r.id === rdoId);
     if (!originalRdo) return;
 
     try {
-      await setDoc(doc(db, 'rdos', rdoId), { ...originalRdo, status: newStatus });
+      const updatedRdo = {
+        ...originalRdo,
+        status: newStatus,
+        ...(signatures || {})
+      };
+      await setDoc(doc(db, 'rdos', rdoId), updatedRdo);
 
       const audit: AuditLog = {
         id: `aud-evnt-${Date.now()}`,

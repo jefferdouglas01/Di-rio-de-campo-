@@ -32,7 +32,18 @@ interface RdoDetailViewProps {
   currentUser: User;
   auditLogs: AuditLog[];
   onBack: () => void;
-  onUpdateStatus: (rdoId: string, newStatus: RdoStatus, justification: string, changes?: ChangeLogItem[]) => void;
+  onUpdateStatus: (
+    rdoId: string, 
+    newStatus: RdoStatus, 
+    justification: string, 
+    changes?: ChangeLogItem[],
+    signatures?: {
+      approverSignature?: string;
+      executantSignature?: string;
+      approvalDate?: string;
+      executantDate?: string;
+    }
+  ) => void;
   onAdjustWorkerHours: (rdoId: string, workerId: string, field: 'normalHours' | 'extraHours' | 'nightHours', newValue: number, justification: string) => void;
 }
 
@@ -53,6 +64,15 @@ export function RdoDetailView({
   const [showApprovalBox, setShowApprovalBox] = useState<boolean>(false);
   const [approvalType, setApprovalType] = useState<'Aprovar' | 'Correcao' | 'Reprovar'>('Aprovar');
   const [justificationInput, setJustificationInput] = useState<string>('');
+
+  // Local signature inputs state
+  const [inpExecutant, setInpExecutant] = useState<string>(rdo.executantSignature || '');
+  const [inpApprover, setInpApprover] = useState<string>(rdo.approverSignature || '');
+
+  React.useEffect(() => {
+    setInpExecutant(rdo.executantSignature || '');
+    setInpApprover(rdo.approverSignature || '');
+  }, [rdo.id, rdo.executantSignature, rdo.approverSignature]);
 
   // Local state for field adjustments (authorized edits)
   const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null);
@@ -81,8 +101,16 @@ export function RdoDetailView({
     }
 
     let targetStatus: RdoStatus = rdo.status;
+    let signatures: any = {};
+
     if (approvalType === 'Aprovar') {
       targetStatus = 'Aprovado';
+      signatures = {
+        approverSignature: rdo.approverSignature || currentUser.name,
+        executantSignature: rdo.executantSignature || currentUser.name,
+        approvalDate: rdo.approvalDate || new Date().toLocaleDateString('pt-BR'),
+        executantDate: rdo.executantDate || new Date().toLocaleDateString('pt-BR')
+      };
     } else if (approvalType === 'Correcao') {
       targetStatus = 'Correção solicitada';
     } else if (approvalType === 'Reprovar') {
@@ -91,7 +119,7 @@ export function RdoDetailView({
 
     onUpdateStatus(rdo.id, targetStatus, justificationInput.trim(), [
       { field: 'status', oldValue: rdo.status, newValue: targetStatus }
-    ]);
+    ], signatures);
 
     // reset states
     setShowApprovalBox(false);
@@ -483,6 +511,171 @@ export function RdoDetailView({
                   <p className="text-xs text-gray-405 italic py-4">Sem anotações de interferências externas ou ocorrências impeditivas.</p>
                 ) : null}
               </div>
+            </div>
+
+            {/* ASSINATURAS DO RDO (CONTRATADA E CONTRATANTE) */}
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-6" id="rdo-signatures-card">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2 border-b border-gray-100 pb-3">
+                <UserCheck className="w-4 h-4 text-blue-500 font-sans" />
+                <span>Assinaturas de Validação do RDO</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
+                
+                {/* CONTRACTED/EXECUTANT SIGNATURE BLOCK */}
+                <div className="flex flex-col items-center justify-between border border-gray-100 p-4 rounded-xl bg-gray-50/30 text-center min-h-[180px] relative">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Assinatura da Contratada (Executante)</span>
+                  
+                  <div className="flex-1 flex flex-col justify-center my-4 w-full">
+                    {rdo.executantSignature ? (
+                      <div className="space-y-1">
+                        {/* Elegant cursive handwriting style approximation */}
+                        <p className="font-serif italic text-lg text-indigo-700 font-bold tracking-wide py-1">
+                          {rdo.executantSignature}
+                        </p>
+                        <div className="w-48 h-[1px] bg-gray-300 mx-auto" />
+                        <span className="text-xs font-bold text-gray-750 block">{rdo.executantSignature}</span>
+                        {rdo.executantDate && (
+                          <span className="text-[10px] text-gray-400 block">Validado no sistema em {rdo.executantDate}</span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-[9px] uppercase font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-sm border border-indigo-100 mt-2">
+                          ✓ Validado Digitalmente
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 py-2">
+                        <div className="border border-dashed border-gray-200 py-3 rounded-lg bg-white/50 text-gray-400 italic text-xs">
+                          Aguardando validação/assinatura...
+                        </div>
+                        <div className="w-48 h-[1px] border-t border-dashed border-gray-300 mx-auto" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="w-full text-[10px] text-gray-400 mt-auto">
+                    Responsável Técnico / Executante da Obra
+                  </div>
+                </div>
+
+                {/* CLIENT/APPROVER SIGNATURE BLOCK */}
+                <div className="flex flex-col items-center justify-between border border-gray-100 p-4 rounded-xl bg-gray-50/30 text-center min-h-[180px] relative">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Assinatura da Contratante (Aprovador)</span>
+                  
+                  <div className="flex-1 flex flex-col justify-center my-4 w-full">
+                    {rdo.approverSignature ? (
+                      <div className="space-y-1">
+                        {/* Elegant cursive handwriting style approximation */}
+                        <p className="font-serif italic text-lg text-blue-700 font-bold tracking-wide py-1">
+                          {rdo.approverSignature}
+                        </p>
+                        <div className="w-48 h-[1px] bg-gray-300 mx-auto" />
+                        <span className="text-xs font-bold text-gray-750 block">{rdo.approverSignature}</span>
+                        {rdo.approvalDate && (
+                          <span className="text-[10px] text-gray-400 block">Aprovado no sistema em {rdo.approvalDate}</span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-[9px] uppercase font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100 mt-2">
+                          ✓ Deferido e Assinado
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 py-2">
+                        <div className="border border-dashed border-gray-200 py-3 rounded-lg bg-white/50 text-gray-400 italic text-xs">
+                          Aguardando aprovação/assinatura...
+                        </div>
+                        <div className="w-48 h-[1px] border-t border-dashed border-gray-300 mx-auto" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="w-full text-[10px] text-gray-400 mt-auto">
+                    Gestor de Contrato / Fiscal Aprovador
+                  </div>
+                </div>
+
+              </div>
+
+              {/* QUICK INLINE SIGNATURE MODIFIER FOR FISCAIS AND ADMINS */}
+              {(currentUser.role === 'manager' || currentUser.role === 'admin') && (
+                <div className="print:hidden bg-blue-50/40 border border-blue-150 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-blue-800">Assinatura Digital Rápida (Online)</span>
+                    <p className="text-[10px] text-gray-400">Insira seu nome para chancelar ou assinar o diário online</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Assinar como Contratada (Executante)</label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Nome da Contratada"
+                          value={inpExecutant}
+                          onChange={(e) => setInpExecutant(e.target.value)}
+                          className="bg-white border border-gray-200 text-xs px-2.5 py-1.5 rounded-lg w-full outline-hidden text-gray-800 font-semibold"
+                        />
+                        <button
+                          onClick={() => {
+                            if (!inpExecutant.trim()) { alert('Informe o nome da contratada para assinar.'); return; }
+                            onUpdateStatus(rdo.id, rdo.status, 'Validação e assinatura da contratada via painel de assinatura rápida.', [], {
+                              executantSignature: inpExecutant.trim(),
+                              executantDate: new Date().toLocaleDateString('pt-BR')
+                            });
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] px-3 rounded-lg cursor-pointer"
+                        >
+                          Assinar
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Assinar como Contratante (Aprovador)</label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Nome do Aprovador"
+                          value={inpApprover}
+                          onChange={(e) => setInpApprover(e.target.value)}
+                          className="bg-white border border-gray-200 text-xs px-2.5 py-1.5 rounded-lg w-full outline-hidden text-gray-800 font-semibold"
+                        />
+                        <button
+                          onClick={() => {
+                            if (!inpApprover.trim()) { alert('Informe o nome do aprovador para assinar.'); return; }
+                            onUpdateStatus(rdo.id, rdo.status, 'Aprovação e assinatura da contratante via painel de assinatura rápida.', [], {
+                              approverSignature: inpApprover.trim(),
+                              approvalDate: new Date().toLocaleDateString('pt-BR')
+                            });
+                          }}
+                          className="bg-green-600 hover:bg-green-700 text-white font-bold text-[10px] px-3 rounded-lg cursor-pointer"
+                        >
+                          Assinar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Clean signature button if they want to clear signatures */}
+                  {(rdo.approverSignature || rdo.executantSignature) && (
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => {
+                          onUpdateStatus(rdo.id, rdo.status, 'Assinaturas removidas via painel de gerenciamento.', [], {
+                            approverSignature: '',
+                            executantSignature: '',
+                            approvalDate: '',
+                            executantDate: ''
+                          });
+                          setInpExecutant('');
+                          setInpApprover('');
+                        }}
+                        className="text-[10px] text-red-500 hover:underline font-bold"
+                      >
+                        Limpar chancelas / assinaturas atuais
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
           </div>

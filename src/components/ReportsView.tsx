@@ -45,9 +45,15 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [selectedContractId, setSelectedContractId] = useState<string>('all');
 
-  // Trigger export alert
+  // Trigger export alert with signatures metadata
   const triggerExport = (format: 'PDF' | 'Excel') => {
-    alert(`[Módulo de Relatórios]\nDocumento exportado com sucesso em formato ${format}!\n\nTemplate: ${activeTemplate}\nEste download contêm dados reais e auditados filtrados pelo gerenciador.`);
+    let signatureDetails = "";
+    if (activeTemplate === 'individual_rdo' && activeRdoSheet) {
+      const executantName = activeRdoSheet.executantSignature || "Não assinado digitalmente (Linha de assinatura pontilhada impressa)";
+      const approverName = activeRdoSheet.approverSignature || "Não assinado digitalmente (Linha de assinatura pontilhada impressa)";
+      signatureDetails = `\n\nAssinaturas Chanceladas no Relatório:\n✍ Contratada (Executante): ${executantName}\n✍ Contratante (Aprovador): ${approverName}`;
+    }
+    alert(`[Módulo de Exportação RDO]\nRelatório individual exportado com sucesso em formato ${format}!${signatureDetails}\n\nO documento possui validade fiscal, de conformidade de h/h de faturamento e registro de ocorrências operacionais.`);
   };
 
   // 1. Calculations for Hours by Company
@@ -316,7 +322,7 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
                   </div>
 
                   {/* SSMA checks */}
-                  <div className="border-t pt-3 border-gray-150 flex flex-wrap justify-between items-center text-[11px] text-gray-600">
+                  <div className="border-t pt-3 pb-3 border-gray-150 flex flex-wrap justify-between items-center text-[11px] text-gray-600">
                     <div>
                       <span>Registros HSE / SSMA:</span>
                       <span className={`ml-1.5 px-2 py-0.5 rounded-sm font-bold text-[10px] uppercase ${activeRdoSheet.hasHseIncident ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
@@ -324,7 +330,64 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
                       </span>
                     </div>
                     <div>
-                      <span>Responsável Assinatura: <strong>{activeRdoSheet.responsibleName}</strong></span>
+                      <span>Responsável Lançamento: <strong>{activeRdoSheet.responsibleName}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* SIGNATURE FIELDS FOR PRINT AND EXPORT */}
+                  <div className="border-t pt-5 mt-3 border-gray-150 grid grid-cols-1 sm:grid-cols-2 gap-6 text-[11px] text-gray-700 font-sans">
+                    {/* Contracted/Executant block */}
+                    <div className="flex flex-col justify-between border border-gray-100 bg-gray-50/40 p-3.5 rounded-lg text-center min-h-[135px]">
+                      <span className="text-[9px] uppercase font-bold text-gray-405 tracking-wider">Assinatura da Contratada (Executante)</span>
+                      
+                      <div className="flex-1 flex flex-col justify-center my-3">
+                        {activeRdoSheet.executantSignature ? (
+                          <div className="space-y-0.5 animate-fadeIn">
+                            <p className="font-serif italic text-sm text-indigo-700 font-bold tracking-wide">
+                              {activeRdoSheet.executantSignature}
+                            </p>
+                            <div className="w-36 h-[1px] bg-gray-350 mx-auto" />
+                            <span className="text-[10px] font-bold text-gray-650 block">{activeRdoSheet.executantSignature}</span>
+                            {activeRdoSheet.executantDate && (
+                              <span className="text-[9px] text-gray-400 block">Validado eletronicamente em {activeRdoSheet.executantDate}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1 py-1">
+                            <span className="text-[10px] text-gray-400 italic">Pendente (ou Assinatura Física p/ Impresso)</span>
+                            <div className="w-36 h-[1px] border-t border-dashed border-gray-300 mx-auto" />
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="text-[9px] text-gray-400 block">Responsável Técnico / Executante</span>
+                    </div>
+
+                    {/* Client/Approver block */}
+                    <div className="flex flex-col justify-between border border-gray-100 bg-gray-50/40 p-3.5 rounded-lg text-center min-h-[135px]">
+                      <span className="text-[9px] uppercase font-bold text-gray-405 tracking-wider">Assinatura da Contratante (Aprovador)</span>
+                      
+                      <div className="flex-1 flex flex-col justify-center my-3">
+                        {activeRdoSheet.approverSignature ? (
+                          <div className="space-y-0.5 animate-fadeIn">
+                            <p className="font-serif italic text-sm text-blue-700 font-bold tracking-wide">
+                              {activeRdoSheet.approverSignature}
+                            </p>
+                            <div className="w-36 h-[1px] bg-gray-355 mx-auto" />
+                            <span className="text-[10px] font-bold text-gray-650 block">{activeRdoSheet.approverSignature}</span>
+                            {activeRdoSheet.approvalDate && (
+                              <span className="text-[9px] text-gray-400 block">Aprovado eletronicamente em {activeRdoSheet.approvalDate}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1 py-1">
+                            <span className="text-[10px] text-gray-400 italic">Pendente (ou Assinatura Física p/ Impresso)</span>
+                            <div className="w-36 h-[1px] border-t border-dashed border-gray-300 mx-auto" />
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="text-[9px] text-gray-400 block">Gestor de Contrato / Fiscal Aprovador</span>
                     </div>
                   </div>
 

@@ -88,6 +88,10 @@ export interface RdoRecord {
   additionalRemarks?: string;
   attachments: string[]; // List of mock file names
   status: RdoStatus;
+  approverSignature?: string; // Assinatura da Contratante (Aprovador)
+  executantSignature?: string; // Assinatura da Contratada (Executante)
+  approvalDate?: string;
+  executantDate?: string;
 }
 
 export interface ChangeLogItem {
