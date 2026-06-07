@@ -18,7 +18,7 @@ import {
   FileCheck,
   RotateCcw
 } from 'lucide-react';
-import { RdoRecord, Company, Contract } from '../types';
+import { RdoRecord, Company, Contract, User } from '../types';
 
 interface DashboardProps {
   rdos: RdoRecord[];
@@ -26,6 +26,8 @@ interface DashboardProps {
   contracts: Contract[];
   onSelectTab: (tab: string) => void;
   onViewRdo: (rdoId: string) => void;
+  usersList?: User[];
+  currentUser?: User;
 }
 
 export function formatDateBR(dateStr: string) {
@@ -37,7 +39,7 @@ export function formatDateBR(dateStr: string) {
   return dateStr;
 }
 
-export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewRdo }: DashboardProps) {
+export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewRdo, usersList = [], currentUser }: DashboardProps) {
   // Metrics calculated dynamically
   const totalRdos = rdos.length;
   const pendingApproval = rdos.filter(r => r.status === 'Enviado' || r.status === 'Corrigido').length;
@@ -140,6 +142,29 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
 
   return (
     <div className="space-y-8" id="dashboard-main-view">
+      {/* Pending users alert for Administrator in Dashboard */}
+      {currentUser?.role === 'admin' && usersList.some(u => u.role === 'pending') && (
+        <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-xs animate-pulse">
+          <div className="flex items-center gap-3">
+            <span className="p-2.5 bg-amber-100 text-amber-800 rounded-lg shrink-0">
+              <Users className="w-5 h-5" />
+            </span>
+            <div>
+              <span className="text-xs font-bold text-amber-800 uppercase block tracking-wider leading-none">Novos Cadastros Pendentes</span>
+              <span className="text-sm font-semibold text-gray-950 mt-1 block">
+                Existem <strong>{usersList.filter(u => u.role === 'pending').length} solicitações</strong> de acesso aguardando sua liberação operacional.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => onSelectTab('cadastros')}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-440 text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer shrink-0"
+          >
+            Liberar Acessos Agora 🔑
+          </button>
+        </div>
+      )}
+
       {/* Welcome & Overview Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-gray-100 pb-5">
         <div>

@@ -34,12 +34,22 @@ enum OperationType {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const message = error instanceof Error ? error.message : String(error);
   const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: message,
     operationType,
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  
+  // Exibir feedback visual para o usuário sobre falhas no banco
+  let userAlert = `Erro na operação de banco de dados (${operationType}).`;
+  if (message.includes('permission') || message.includes('Permissions')) {
+    userAlert += '\n\nPermissão insuficiente ou regras de segurança ativas impediram esta ação.';
+  } else {
+    userAlert += `\n\nDetalhes: ${message}`;
+  }
+  alert(userAlert);
 }
 
 // Component imports
@@ -451,8 +461,11 @@ export default function App() {
       alert('Erro: Esta empresa possui contratos ativos vinculados e não pode ser removida antes de desvincular o contrato.');
       return;
     }
+    const isConfirm = window.confirm('Deseja realmente excluir esta empresa cadastrada? Esta ação é irreversível.');
+    if (!isConfirm) return;
     try {
       await deleteDoc(doc(db, 'companies', id));
+      alert('Empresa removida com sucesso!');
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `companies/${id}`);
     }
@@ -480,8 +493,11 @@ export default function App() {
       alert('Erro: Este contrato possui boletins RDO de campo já cadastrados e históricos arquivados e não pode ser excluído.');
       return;
     }
+    const isConfirm = window.confirm('Deseja realmente excluir este contrato cadastrado? Esta ação é irreversível.');
+    if (!isConfirm) return;
     try {
       await deleteDoc(doc(db, 'contracts', id));
+      alert('Contrato excluído com sucesso!');
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `contracts/${id}`);
     }
@@ -507,8 +523,11 @@ export default function App() {
   };
 
   const handleDeleteUser = async (id: string) => {
+    const isConfirm = window.confirm('Deseja realmente remover o acesso de usuário deste profissional?');
+    if (!isConfirm) return;
     try {
       await deleteDoc(doc(db, 'users', id));
+      alert('Usuário removido do sistema!');
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `users/${id}`);
     }
@@ -751,17 +770,25 @@ export default function App() {
 
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block px-3 pt-5 pb-2">Configurações</span>
 
-            {currentUser && currentUser.role !== 'contractor' && (
-              <button
-                onClick={() => { setActiveTab('cadastros'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
-                  activeTab === 'cadastros' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Users className="w-4 h-4 shrink-0" />
-                <span>Parâmetros & Cadastros</span>
-              </button>
-            )}
+            {currentUser && currentUser.role !== 'contractor' && (() => {
+              const pendingUsersCount = usersList.filter(u => u.role === 'pending').length;
+              return (
+                <button
+                  onClick={() => { setActiveTab('cadastros'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
+                    activeTab === 'cadastros' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span className="grow">Parâmetros & Cadastros</span>
+                  {currentUser.role === 'admin' && pendingUsersCount > 0 && (
+                    <span className="bg-amber-500 text-[10px] font-bold text-slate-950 px-2 py-0.5 rounded-full shrink-0 animate-pulse">
+                      {pendingUsersCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
 
             <button
               onClick={() => { setActiveTab('relatórios'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
@@ -851,6 +878,8 @@ export default function App() {
                   contracts={filteredContracts}
                   onSelectTab={setActiveTab}
                   onViewRdo={handleSelectRdoView}
+                  usersList={usersList}
+                  currentUser={currentUser!}
                 />
               )}
 

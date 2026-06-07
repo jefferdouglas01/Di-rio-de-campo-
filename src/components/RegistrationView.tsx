@@ -325,6 +325,11 @@ export function RegistrationView({
           >
             <Users className="w-3.5 h-3.5" />
             <span>Usuários ({usersList.length})</span>
+            {isAdmin && usersList.some(u => u.role === 'pending') && (
+              <span className="bg-amber-500 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce ml-1 shrink-0">
+                {usersList.filter(u => u.role === 'pending').length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -895,8 +900,45 @@ export function RegistrationView({
 
             {/* 3. Users list with switcher simulation */}
             {activeRegTab === 'usuarios' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left font-sans text-xs border-collapse">
+              <div className="space-y-6">
+                {/* Solicitacoes de cadastros pendentes Area */}
+                {isAdmin && usersList.some(u => u.role === 'pending') && (
+                  <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-xs space-y-4 animate-fadeIn" id="pending-users-approval">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping shrink-0" />
+                      <h4 className="text-sm font-sans font-bold text-gray-950 tracking-tight">Solicitações de Cadastro Aguardando Aprovação ({usersList.filter(u => u.role === 'pending').length})</h4>
+                    </div>
+                    <p className="text-xs text-slate-650 leading-relaxed font-semibold">
+                      Novos usuários criaram uma conta pelo celular ou site e estão aguardando liberação de acesso. Atribua o perfil corporativo correto clicando em <strong>Configurar e Liberar Acesso</strong>.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {usersList.filter(u => u.role === 'pending').map((usr) => (
+                        <div key={usr.id} className="bg-white border border-amber-200/80 rounded-xl p-4 shadow-sm flex flex-col justify-between gap-3 font-semibold text-xs relative">
+                          <div className="space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-amber-600 block leading-none">Novo Cadastro Pendente</span>
+                            <h5 className="font-bold text-gray-900 text-xs">{usr.name}</h5>
+                            <p className="text-gray-500 font-mono text-[10px]">{usr.email}</p>
+                          </div>
+                          
+                          <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-gray-400 font-sans">Aguardando definição:</span>
+                            <button
+                              type="button"
+                              onClick={() => handleStartUserEdit(usr)}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-450 text-slate-950 font-bold rounded-lg text-[10px] transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                            >
+                              Configurar e Liberar 🔓
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left font-sans text-xs border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase">
                       <th className="p-4">Nome Completo</th>
@@ -1061,6 +1103,7 @@ export function RegistrationView({
                   </tbody>
                 </table>
               </div>
+            </div>
             )}
 
           </div>
