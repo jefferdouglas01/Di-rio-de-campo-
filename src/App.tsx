@@ -37,7 +37,9 @@ import {
   LogOut,
   HardHat,
   Database,
-  ShieldAlert
+  ShieldAlert,
+  Menu,
+  X
 } from 'lucide-react';
 
 export default function App() {
@@ -98,9 +100,14 @@ export default function App() {
   const [viewingRdoId, setViewingRdoId] = useState<string | null>(null);
   const [editingRdoId, setEditingRdoId] = useState<string | null>(null);
   const [isCreatingNewRdo, setIsCreatingNewRdo] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   // Utility to reload default seeds to resolve testing states
   const handleResetSystem = () => {
+    if (currentUser?.role !== 'admin') {
+      alert('Acesso negado: apenas o Administrador Geral possui permissão para limpar o banco central.');
+      return;
+    }
     const isConfirm = window.confirm('Tem certeza de que deseja resetar os dados? Todas as suas alterações locais serão limpas do banco de dados.');
     if (isConfirm) {
       localStorage.clear();
@@ -303,6 +310,12 @@ export default function App() {
     localStorage.setItem('rdo_db_companies', JSON.stringify(updated));
   };
 
+  const handleUpdateCompany = (updatedCompany: Company) => {
+    const updated = companies.map(c => c.id === updatedCompany.id ? updatedCompany : c);
+    setCompanies(updated);
+    localStorage.setItem('rdo_db_companies', JSON.stringify(updated));
+  };
+
   const handleDeleteCompany = (id: string) => {
     const linked = contracts.some(c => c.companyId === id);
     if (linked) {
@@ -486,41 +499,71 @@ export default function App() {
     <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans antialiased text-gray-800" id="app-root-frame">
       
       {/* 1. SUPERIOR TOP BANNER (CLEAN & PROFESSIONAL) */}
-      <div className="bg-slate-900 border-b border-slate-950 px-5 py-2.5 flex justify-between items-center gap-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-355">
+      <div className="bg-slate-900 border-b border-slate-950 px-4 py-2 flex justify-between items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5">
+          {/* Hamburger button to trigger sidebar drawer on mobile/tablet */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="lg:hidden p-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-md transition-colors cursor-pointer border border-slate-700/80 shrink-0"
+            title="Navegação do Painel"
+          >
+            {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+          <span className="text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-widest text-slate-355 truncate">
             Painel RDO - Base Operacional Integrada
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Quick local database reset */}
-          <button
-            onClick={handleResetSystem}
-            className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-colors border border-slate-700 cursor-pointer"
-            title="Deseja limpar todos os dados registrados?"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>Limpar Banco Local</span>
-          </button>
+          {/* Quick local database reset visible only for Administrator */}
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={handleResetSystem}
+              className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 transition-colors border border-slate-700 cursor-pointer"
+              title="Deseja limpar todos os dados registrados?"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Limpar Banco Local</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* 2. MIDDLE VIEWPORT LAYOUT */}
-      <div className="flex flex-col lg:flex-row grow">
+      <div className="flex flex-col lg:flex-row grow relative">
         
+        {/* Backdrop overlay for mobile drawer */}
+        {isSidebarOpen && (
+          <div 
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-950/60 z-30 lg:hidden backdrop-blur-xs transition-opacity duration-300"
+          />
+        )}
+
         {/* SIDE BAR / LEFT NAVIGATOR */}
-        <aside className="w-full lg:w-64 bg-slate-900 text-slate-300 shrink-0 border-r border-slate-950 flex flex-col">
+        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 border-r border-slate-950 flex flex-col transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           {/* Logo brand */}
-          <div className="p-6 border-b border-slate-950 flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 shadow-lg text-white flex items-center justify-center font-bold text-lg rounded-xl">
-              R
+          <div className="p-6 border-b border-slate-950 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-blue-600 shadow-lg text-white flex items-center justify-center font-bold text-lg rounded-xl">
+                R
+              </div>
+              <div>
+                <span className="font-extrabold text-white text-sm tracking-tight block">RDO & Medição</span>
+                <span className="text-[10px] text-slate-450 block font-mono mt-0.5">Versão MVP 1.0</span>
+              </div>
             </div>
-            <div>
-              <span className="font-extrabold text-white text-sm tracking-tight block">RDO & Medição</span>
-              <span className="text-[10px] text-slate-450 block font-mono mt-0.5">Versão MVP 1.0</span>
-            </div>
+
+            {/* Close sidebar button on mobile view */}
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="lg:hidden p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-md cursor-pointer transition-colors"
+              title="Fechar menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Nav groups */}
@@ -528,7 +571,7 @@ export default function App() {
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block px-3 pb-2">Principal</span>
             
             <button
-              onClick={() => { setActiveTab('dashboard'); setViewingRdoId(null); handleCancelRdoForm(); }}
+              onClick={() => { setActiveTab('dashboard'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
                 activeTab === 'dashboard' && !viewingRdoId && !isCreatingNewRdo && !editingRdoId
                   ? 'bg-blue-600 text-white shadow-md' 
@@ -540,7 +583,7 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => { setActiveTab('rdos'); setViewingRdoId(null); handleCancelRdoForm(); }}
+              onClick={() => { setActiveTab('rdos'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
                 activeTab === 'rdos' || viewingRdoId || isCreatingNewRdo || editingRdoId
                   ? 'bg-blue-600 text-white shadow-md' 
@@ -552,7 +595,7 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => { setActiveTab('medição'); setViewingRdoId(null); handleCancelRdoForm(); }}
+              onClick={() => { setActiveTab('medição'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
                 activeTab === 'medição' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
               }`}
@@ -565,7 +608,7 @@ export default function App() {
 
             {currentUser && currentUser.role !== 'contractor' && (
               <button
-                onClick={() => { setActiveTab('cadastros'); setViewingRdoId(null); handleCancelRdoForm(); }}
+                onClick={() => { setActiveTab('cadastros'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
                   activeTab === 'cadastros' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
                 }`}
@@ -576,7 +619,7 @@ export default function App() {
             )}
 
             <button
-              onClick={() => { setActiveTab('relatórios'); setViewingRdoId(null); handleCancelRdoForm(); }}
+              onClick={() => { setActiveTab('relatórios'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
                 activeTab === 'relatórios' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
               }`}
@@ -602,7 +645,7 @@ export default function App() {
               </div>
               <button 
                 onClick={handleLogout}
-                className="p-1.5 bg-slate-850 hover:bg-rose-950 hover:text-rose-350 text-slate-450 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 bg-slate-850 hover:bg-rose-955 hover:text-rose-350 text-slate-450 rounded-lg transition-colors cursor-pointer font-sans"
                 title="Sair do sistema"
               >
                 <LogOut className="w-4 h-4" />
@@ -697,6 +740,7 @@ export default function App() {
                   usersList={filteredUsersList}
                   currentUser={currentUser!}
                   onAddCompany={handleAddCompany}
+                  onUpdateCompany={handleUpdateCompany}
                   onAddContract={handleAddContract}
                   onUpdateContract={handleUpdateContract}
                   onAddUser={handleAddUser}

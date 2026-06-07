@@ -27,6 +27,7 @@ interface RegistrationViewProps {
   usersList: User[];
   currentUser: User;
   onAddCompany: (comp: Company) => void;
+  onUpdateCompany: (comp: Company) => void;
   onAddContract: (cnt: Contract) => void;
   onUpdateContract: (cnt: Contract) => void;
   onAddUser: (usr: User) => void;
@@ -42,6 +43,7 @@ export function RegistrationView({
   usersList,
   currentUser,
   onAddCompany,
+  onUpdateCompany,
   onAddContract,
   onUpdateContract,
   onAddUser,
@@ -111,6 +113,45 @@ export function RegistrationView({
     onUpdateUser(updatedUser);
     setEditingUserId(null);
     alert('Cadastro do colaborador e permissões de acesso atualizados com sucesso!');
+  };
+
+  // Editing Company States for administrators
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [editingCompanyName, setEditingCompanyName] = useState<string>('');
+  const [editingCompanyCnpj, setEditingCompanyCnpj] = useState<string>('');
+  const [editingCompanyResponsible, setEditingCompanyResponsible] = useState<string>('');
+  const [editingCompanyEmail, setEditingCompanyEmail] = useState<string>('');
+  const [editingCompanyPhone, setEditingCompanyPhone] = useState<string>('');
+
+  const handleStartCompanyEdit = (comp: Company) => {
+    setEditingCompanyId(comp.id);
+    setEditingCompanyName(comp.name);
+    setEditingCompanyCnpj(comp.cnpj);
+    setEditingCompanyResponsible(comp.responsibleName || '');
+    setEditingCompanyEmail(comp.email);
+    setEditingCompanyPhone(comp.phone);
+  };
+
+  const handleSaveCompanyEdit = () => {
+    if (!editingCompanyId || !editingCompanyName.trim() || !editingCompanyCnpj.trim()) {
+      alert('Por favor, preencha o nome e o CNPJ da empresa.');
+      return;
+    }
+    const originalCompany = companies.find(c => c.id === editingCompanyId);
+    if (!originalCompany) return;
+
+    const updatedCompany: Company = {
+      ...originalCompany,
+      name: editingCompanyName.trim(),
+      cnpj: editingCompanyCnpj.trim(),
+      responsibleName: editingCompanyResponsible.trim(),
+      email: editingCompanyEmail.trim(),
+      phone: editingCompanyPhone.trim()
+    };
+
+    onUpdateCompany(updatedCompany);
+    setEditingCompanyId(null);
+    alert('Empresa atualizada com sucesso!');
   };
 
   // Editing Contract States for administrators
@@ -590,12 +631,80 @@ export function RegistrationView({
                       <th className="p-4" id="reg-comp-cnpj">CNPJ Oficial</th>
                       <th className="p-4" id="reg-comp-resp">Responsável Técnico</th>
                       <th className="p-4" id="reg-comp-con">Contatos Gerais</th>
-                      {isAdmin && <th className="p-4 text-right" id="reg-comp-act">Excluir</th>}
+                      {isAdmin && <th className="p-4 text-right" id="reg-comp-act">Gerenciar / Ações</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {companies.map((c) => {
                       const linked = contracts.filter(cn => cn.companyId === c.id);
+
+                      if (editingCompanyId === c.id) {
+                        return (
+                          <tr key={c.id} className="bg-blue-50/60 hover:bg-blue-50">
+                            <td className="p-3">
+                              <span className="text-[9px] text-gray-500 uppercase font-sans block mb-1">Empresa Parceira:</span>
+                              <input
+                                type="text"
+                                value={editingCompanyName}
+                                onChange={(e) => setEditingCompanyName(e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-gray-800 outline-hidden focus:border-blue-550 focus:ring-1 focus:ring-blue-500/20"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className="text-[9px] text-gray-500 uppercase font-sans block mb-1">CNPJ Oficial:</span>
+                              <input
+                                type="text"
+                                value={editingCompanyCnpj}
+                                onChange={(e) => setEditingCompanyCnpj(e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-gray-800 outline-hidden focus:border-blue-550"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className="text-[9px] text-gray-500 uppercase font-sans block mb-1">Responsável Técnico:</span>
+                              <input
+                                type="text"
+                                value={editingCompanyResponsible}
+                                onChange={(e) => setEditingCompanyResponsible(e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-gray-800 outline-hidden"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <div className="space-y-1">
+                                <span className="text-[9px] text-gray-500 uppercase font-sans block">E-mail / Contato:</span>
+                                <input
+                                  type="email"
+                                  value={editingCompanyEmail}
+                                  onChange={(e) => setEditingCompanyEmail(e.target.value)}
+                                  className="w-full bg-white border border-gray-300 rounded px-2 py-0.5 text-xs text-gray-750 outline-hidden"
+                                  placeholder="E-mail"
+                                />
+                                <input
+                                  type="text"
+                                  value={editingCompanyPhone}
+                                  onChange={(e) => setEditingCompanyPhone(e.target.value)}
+                                  className="w-full bg-white border border-gray-300 rounded px-2 py-0.5 text-xs text-gray-750 outline-hidden"
+                                  placeholder="Telefone"
+                                />
+                              </div>
+                            </td>
+                            <td className="p-3 text-right space-y-1.5 whitespace-nowrap align-middle">
+                              <button
+                                onClick={handleSaveCompanyEdit}
+                                className="w-full block px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold cursor-pointer transition-all"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingCompanyId(null)}
+                                className="w-full block px-2.5 py-1.5 bg-gray-250 hover:bg-gray-300 text-gray-700 rounded-md text-[10px] font-bold cursor-pointer transition-all border border-gray-200"
+                              >
+                                Cancelar
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      }
+
                       return (
                         <tr key={c.id} className="hover:bg-slate-50/50">
                           <td className="p-4 font-semibold text-gray-900">
@@ -613,10 +722,17 @@ export function RegistrationView({
                             <span className="block text-gray-400 mt-0.5">{c.phone}</span>
                           </td>
                           {isAdmin && (
-                            <td className="p-4 text-right">
+                            <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                              <button
+                                onClick={() => handleStartCompanyEdit(c)}
+                                className="p-1 px-2.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all border border-slate-200 cursor-pointer inline-block"
+                                title="Editar esta empresa"
+                              >
+                                Editar
+                              </button>
                               <button
                                 onClick={() => onDeleteCompany(c.id)}
-                                className="p-1 px-2 hover:bg-red-50 text-gray-450 hover:text-red-600 rounded transition-colors"
+                                className="p-1 px-2 hover:bg-red-50 text-gray-450 hover:text-red-700 rounded transition-colors cursor-pointer inline-block"
                                 title="Deletar Empresa"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
