@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Cadastro de Empresa Parceira Terceirizada",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID exclusivo da empresa" },
+        "name": { "type": "string", "description": "Nome ou Razão Social" },
+        "cnpj": { "type": "string", "description": "CNPJ corporativo" },
+        "responsibleName": { "type": "string", "description": "Responsável técnico" },
+        "email": { "type": "string", "description": "Email operacional" },
+        "phone": { "type": "string", "description": "Telefone de contato" },
+        "active": { "type": "boolean", "description": "Sinalizador ativo" }
+      },
+      "required": ["id", "name", "cnpj"]
+    },
+    "Contract": {
+      "title": "Contract",
+      "description": "Contrato de Terceiros e Regime de Medição",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID exclusivo do contrato" },
+        "contractNumber": { "type": "string", "description": "Identificador ou número do contrato" },
+        "client": { "type": "string", "description": "Nome da empresa cliente principal tomadora" },
+        "companyId": { "type": "string", "description": "ID da empresa parceira vinculada" },
+        "scope": { "type": "string", "description": "Resumo do escopo do serviço" },
+        "startDate": { "type": "string", "description": "Data de início" },
+        "endDate": { "type": "string", "description": "Data de término" },
+        "measurementRegime": { "type": "string", "description": "Regime de tarifas H/H, PU, etc." },
+        "rateRule": { "type": "string", "description": "Preço pactuado" },
+        "costCenter": { "type": "string", "description": "Centro de custos" },
+        "siteLocation": { "type": "string", "description": "Local de execução" }
+      },
+      "required": ["id", "contractNumber", "client", "companyId"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Colaboradores corporativos e perfis de acesso",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID do usuário" },
+        "name": { "type": "string", "description": "Nome completo" },
+        "email": { "type": "string", "description": "Email oficial do login" },
+        "role": { "type": "string", "description": "Papel dador no sistema (admin, manager, contractor, pending)" },
+        "active": { "type": "boolean", "description": "Sinalizador ativo público" },
+        "companyId": { "type": "string", "description": "ID da empresa do usuário se for contractor" },
+        "password": { "type": "string", "description": "Senha para propósitos de MVP offline/online" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "RdoRecord": {
+      "title": "RdoRecord",
+      "description": "Relatório Diário de Obra e Atividades de Campo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único do boletim de diário" },
+        "contractId": { "type": "string", "description": "ID do contrato principal" },
+        "companyId": { "type": "string", "description": "ID da empresa parceira" },
+        "companyName": { "type": "string", "description": "Nome da empresa parceira" },
+        "date": { "type": "string", "description": "Data do informe" },
+        "weatherMorning": { "type": "string", "description": "Clima de dia" },
+        "weatherAfternoon": { "type": "string", "description": "Clima de tarde" },
+        "workingMorning": { "type": "boolean", "description": "Atividade de dia" },
+        "workingAfternoon": { "type": "boolean", "description": "Atividade de tarde" },
+        "status": { "type": "string", "description": "Workflow de status" },
+        "comments": { "type": "string", "description": "Notas adicionais" }
+      },
+      "required": ["id", "contractId", "companyId", "date", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Históricos e logs de auditoria dos boletins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID do rastro" },
+        "rdoId": { "type": "string", "description": "ID do diário de obra correspondente" },
+        "userId": { "type": "string", "description": "ID de quem realizou a alteração" },
+        "userName": { "type": "string", "description": "Nome de quem realizou" },
+        "userRole": { "type": "string", "description": "Função do usuário" },
+        "timestamp": { "type": "string", "description": "Timestamp ISO" },
+        "justification": { "type": "string", "description": "Notas" },
+        "previousStatus": { "type": "string", "description": "Status anterior" },
+        "newStatus": { "type": "string", "description": "Status novo" }
+      },
+      "required": ["id", "rdoId", "userId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "companies": {
+      "schema": "Company",
+      "description": "Coleção de empresas parceiras"
+    },
+    "contracts": {
+      "schema": "Contract",
+      "description": "Coleção de contratos"
+    },
+    "users": {
+      "schema": "User",
+      "description": "Coleção contendo todos os usuários"
+    },
+    "rdos": {
+      "schema": "RdoRecord",
+      "description": "Coleção de relatórios diários de obra"
+    },
+    "audits": {
+      "schema": "AuditLog",
+      "description": "Histórico de auditoria, fluxos e glosas"
+    }
+  }
+}

@@ -13,6 +13,35 @@ import {
 } from './data';
 import { Company, Contract, User, RdoRecord, AuditLog, RdoStatus, ChangeLogItem, MeasurementAdjustment } from './types';
 
+// Firebase Firestore Imports
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  getDocs 
+} from 'firebase/firestore';
+import { db } from './firebase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+}
+
 // Component imports
 import { DashboardView } from './components/DashboardView';
 import { RdoListView } from './components/RdoListView';
@@ -44,40 +73,30 @@ import {
 
 export default function App() {
   
-  // Primary Databases state with synchronous state initializers
+  // Primary Databases state backed by Firestore real-time listeners and LocalStorage cache fallback
   const [rdos, setRdos] = useState<RdoRecord[]>(() => {
     const local = localStorage.getItem('rdo_db_rdos');
-    if (local) return JSON.parse(local);
-    localStorage.setItem('rdo_db_rdos', JSON.stringify(INITIAL_RDOS));
-    return INITIAL_RDOS;
+    return local ? JSON.parse(local) : INITIAL_RDOS;
   });
   
   const [companies, setCompanies] = useState<Company[]>(() => {
     const local = localStorage.getItem('rdo_db_companies');
-    if (local) return JSON.parse(local);
-    localStorage.setItem('rdo_db_companies', JSON.stringify(INITIAL_COMPANIES));
-    return INITIAL_COMPANIES;
+    return local ? JSON.parse(local) : INITIAL_COMPANIES;
   });
   
   const [contracts, setContracts] = useState<Contract[]>(() => {
     const local = localStorage.getItem('rdo_db_contracts');
-    if (local) return JSON.parse(local);
-    localStorage.setItem('rdo_db_contracts', JSON.stringify(INITIAL_CONTRACTS));
-    return INITIAL_CONTRACTS;
+    return local ? JSON.parse(local) : INITIAL_CONTRACTS;
   });
   
   const [usersList, setUsersList] = useState<User[]>(() => {
     const local = localStorage.getItem('rdo_db_users');
-    if (local) return JSON.parse(local);
-    localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
-    return INITIAL_USERS;
+    return local ? JSON.parse(local) : INITIAL_USERS;
   });
   
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
     const local = localStorage.getItem('rdo_db_audits');
-    if (local) return JSON.parse(local);
-    localStorage.setItem('rdo_db_audits', JSON.stringify(INITIAL_AUDIT_LOGS));
-    return INITIAL_AUDIT_LOGS;
+    return local ? JSON.parse(local) : INITIAL_AUDIT_LOGS;
   });
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -102,32 +121,166 @@ export default function App() {
   const [isCreatingNewRdo, setIsCreatingNewRdo] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
-  // Utility to reload default seeds to resolve testing states
-  const handleResetSystem = () => {
+  // Real-time synchronization listeners with Firestore
+  useEffect(() => {
+    // 1. Sync Companies
+    const unsubCompanies = onSnapshot(collection(db, 'companies'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_COMPANIES.forEach((comp) => {
+          setDoc(doc(db, 'companies', comp.id), comp).catch(e => console.error(e));
+        });
+      } else {
+        const comps: Company[] = [];
+        snapshot.forEach((doc) => {
+          comps.push(doc.data() as Company);
+        });
+        setCompanies(comps);
+        localStorage.setItem('rdo_db_companies', JSON.stringify(comps));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'companies');
+    });
+
+    // 2. Sync Contracts
+    const unsubContracts = onSnapshot(collection(db, 'contracts'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_CONTRACTS.forEach((cnt) => {
+          setDoc(doc(db, 'contracts', cnt.id), cnt).catch(e => console.error(e));
+        });
+      } else {
+        const cnts: Contract[] = [];
+        snapshot.forEach((doc) => {
+          cnts.push(doc.data() as Contract);
+        });
+        setContracts(cnts);
+        localStorage.setItem('rdo_db_contracts', JSON.stringify(cnts));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'contracts');
+    });
+
+    // 3. Sync Users
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_USERS.forEach((usr) => {
+          setDoc(doc(db, 'users', usr.id), usr).catch(e => console.error(e));
+        });
+      } else {
+        const usrs: User[] = [];
+        snapshot.forEach((doc) => {
+          usrs.push(doc.data() as User);
+        });
+        setUsersList(usrs);
+        localStorage.setItem('rdo_db_users', JSON.stringify(usrs));
+
+        // Automatically update current logged-in user profile if it changed on server
+        const email = localStorage.getItem('rdo_active_user_email');
+        const isLg = localStorage.getItem('rdo_is_logged_in') === 'true';
+        if (isLg && email) {
+          const matched = usrs.find(u => u.email.trim().toLowerCase() === email.trim().toLowerCase());
+          if (matched) {
+            setCurrentUser(matched);
+          }
+        }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
+    });
+
+    // 4. Sync RDOS
+    const unsubRdos = onSnapshot(collection(db, 'rdos'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_RDOS.forEach((rdo) => {
+          setDoc(doc(db, 'rdos', rdo.id), rdo).catch(e => console.error(e));
+        });
+      } else {
+        const rList: RdoRecord[] = [];
+        snapshot.forEach((doc) => {
+          rList.push(doc.data() as RdoRecord);
+        });
+        rList.sort((a, b) => b.date.localeCompare(a.date));
+        setRdos(rList);
+        localStorage.setItem('rdo_db_rdos', JSON.stringify(rList));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'rdos');
+    });
+
+    // 5. Sync Audits
+    const unsubAudits = onSnapshot(collection(db, 'audits'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_AUDIT_LOGS.forEach((aud) => {
+          setDoc(doc(db, 'audits', aud.id), aud).catch(e => console.error(e));
+        });
+      } else {
+        const auds: AuditLog[] = [];
+        snapshot.forEach((doc) => {
+          auds.push(doc.data() as AuditLog);
+        });
+        auds.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        setAuditLogs(auds);
+        localStorage.setItem('rdo_db_audits', JSON.stringify(auds));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'audits');
+    });
+
+    return () => {
+      unsubCompanies();
+      unsubContracts();
+      unsubUsers();
+      unsubRdos();
+      unsubAudits();
+    };
+  }, []);
+
+  // Central Database re-seeding mechanism (restricted to super admin only)
+  const handleResetSystem = async () => {
     if (currentUser?.role !== 'admin') {
       alert('Acesso negado: apenas o Administrador Geral possui permissão para limpar o banco central.');
       return;
     }
-    const isConfirm = window.confirm('Tem certeza de que deseja resetar os dados? Todas as suas alterações locais serão limpas do banco de dados.');
+    const isConfirm = window.confirm('Tem certeza de que deseja resetar os dados no Firestore? Todas as alterações de todas as empresas e dispositivos serão limpas e redefinidas para os dados iniciais.');
     if (isConfirm) {
-      localStorage.clear();
-      setRdos(INITIAL_RDOS);
-      setCompanies(INITIAL_COMPANIES);
-      setContracts(INITIAL_CONTRACTS);
-      setUsersList(INITIAL_USERS);
-      setAuditLogs(INITIAL_AUDIT_LOGS);
-      setCurrentUser(null);
-      setIsLoggedIn(false);
-      setActiveTab('dashboard');
-      setViewingRdoId(null);
-      setEditingRdoId(null);
-      setIsCreatingNewRdo(false);
-      localStorage.setItem('rdo_db_rdos', JSON.stringify(INITIAL_RDOS));
-      localStorage.setItem('rdo_db_companies', JSON.stringify(INITIAL_COMPANIES));
-      localStorage.setItem('rdo_db_contracts', JSON.stringify(INITIAL_CONTRACTS));
-      localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
-      localStorage.setItem('rdo_db_audits', JSON.stringify(INITIAL_AUDIT_LOGS));
-      alert('Sistema resetado com sucesso! Por favor, faça login com a conta de Administrador.');
+      try {
+        const collectionsToReset = ['rdos', 'companies', 'contracts', 'users', 'audits'];
+        
+        for (const colName of collectionsToReset) {
+          const snap = await getDocs(collection(db, colName));
+          for (const docItem of snap.docs) {
+            await deleteDoc(doc(db, colName, docItem.id));
+          }
+        }
+
+        for (const comp of INITIAL_COMPANIES) {
+          await setDoc(doc(db, 'companies', comp.id), comp);
+        }
+        for (const cnt of INITIAL_CONTRACTS) {
+          await setDoc(doc(db, 'contracts', cnt.id), cnt);
+        }
+        for (const usr of INITIAL_USERS) {
+          await setDoc(doc(db, 'users', usr.id), usr);
+        }
+        for (const rdo of INITIAL_RDOS) {
+          await setDoc(doc(db, 'rdos', rdo.id), rdo);
+        }
+        for (const aud of INITIAL_AUDIT_LOGS) {
+          await setDoc(doc(db, 'audits', aud.id), aud);
+        }
+
+        localStorage.clear();
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        setActiveTab('dashboard');
+        setViewingRdoId(null);
+        setEditingRdoId(null);
+        setIsCreatingNewRdo(false);
+
+        alert('Banco central de dados sincronizado e resetado com sucesso para todos os dispositivos!');
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, 'central_reset');
+        alert('Ocorreu um erro ao redefinir os dados corporativos no Firestore.');
+      }
     }
   };
 
@@ -142,58 +295,41 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // State synchronization writer to local storage
-  const syncAndSaveRdos = (updated: RdoRecord[]) => {
-    setRdos(updated);
-    localStorage.setItem('rdo_db_rdos', JSON.stringify(updated));
-  };
-
-  const syncAndSaveAudits = (updated: AuditLog[]) => {
-    setAuditLogs(updated);
-    localStorage.setItem('rdo_db_audits', JSON.stringify(updated));
-  };
-
-  // CRUD DISPATCHERS
+  // CRUD DISPATCHERS WITH REALTIME FIRESTORE UPDATE
 
   // 1. Save or Create RDO
-  const handleSaveRdoRecord = (record: RdoRecord, isCommit: boolean) => {
+  const handleSaveRdoRecord = async (record: RdoRecord, isCommit: boolean) => {
     const exists = rdos.some(r => r.id === record.id);
-    let updatedRdos: RdoRecord[] = [];
+    try {
+      await setDoc(doc(db, 'rdos', record.id), record);
 
-    if (exists) {
-      updatedRdos = rdos.map(r => r.id === record.id ? record : r);
-    } else {
-      updatedRdos = [record, ...rdos];
+      if (currentUser) {
+        const descriptionText = isCommit 
+          ? (exists ? 'Boletim RDO editado e reenviado para verificação.' : 'Novo Boletim RDO lançado e enviado para validação.')
+          : 'Rascunho de diário de obra atualizado localmente.';
+        
+        const newAudit: AuditLog = {
+          id: `aud-evnt-${Date.now()}`,
+          rdoId: record.id,
+          userId: currentUser.id,
+          userName: currentUser.name,
+          userRole: currentUser.role,
+          timestamp: new Date().toISOString(),
+          changes: [{ field: 'status', oldValue: exists ? 'N/A' : 'Criado', newValue: record.status }],
+          justification: descriptionText,
+          previousStatus: exitsPreviousStatus(record.id),
+          newStatus: record.status
+        };
+        
+        await setDoc(doc(db, 'audits', newAudit.id), newAudit);
+      }
+
+      setIsCreatingNewRdo(false);
+      setEditingRdoId(null);
+      setActiveTab('rdos');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `rdos/${record.id}`);
     }
-
-    syncAndSaveRdos(updatedRdos);
-
-    // Create Audit entry if it has been committed for review
-    if (currentUser) {
-      const descriptionText = isCommit 
-        ? (exists ? 'Boletim RDO editado e reenviado para verificação.' : 'Novo Boletim RDO lançado e enviado para validação.')
-        : 'Rascunho de diário de obra atualizado localmente.';
-      
-      const newAudit: AuditLog = {
-        id: `aud-evnt-${Date.now()}`,
-        rdoId: record.id,
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userRole: currentUser.role,
-        timestamp: new Date().toISOString(),
-        changes: [{ field: 'status', oldValue: exists ? 'N/A' : 'Criado', newValue: record.status }],
-        justification: descriptionText,
-        previousStatus: exitsPreviousStatus(record.id),
-        newStatus: record.status
-      };
-      
-      syncAndSaveAudits([newAudit, ...auditLogs]);
-    }
-
-    // Reset views
-    setIsCreatingNewRdo(false);
-    setEditingRdoId(null);
-    setActiveTab('rdos');
   };
 
   const exitsPreviousStatus = (id: string): RdoStatus => {
@@ -202,54 +338,48 @@ export default function App() {
   };
 
   // 2. Clear / Delete RDO
-  const handleDeleteRdoRecord = (rdoId: string) => {
+  const handleDeleteRdoRecord = async (rdoId: string) => {
     const isConfirm = window.confirm('Deseja excluir definitivamente este rascunho de RDO? Esta ação não possui retorno.');
     if (isConfirm) {
-      const filtered = rdos.filter(r => r.id !== rdoId);
-      syncAndSaveRdos(filtered);
-      
-      // Clean target logs too for safety
-      const filteredAuds = auditLogs.filter(a => a.rdoId !== rdoId);
-      syncAndSaveAudits(filteredAuds);
+      try {
+        await deleteDoc(doc(db, 'rdos', rdoId));
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, `rdos/${rdoId}`);
+      }
     }
   };
 
   // 3. Workflow Status update with mandatory justification
-  const handleUpdateStatus = (rdoId: string, newStatus: RdoStatus, justification: string, changes: ChangeLogItem[] = []) => {
+  const handleUpdateStatus = async (rdoId: string, newStatus: RdoStatus, justification: string, changes: ChangeLogItem[] = []) => {
     if (!currentUser) return;
 
-    // Track original status
     const originalRdo = rdos.find(r => r.id === rdoId);
     if (!originalRdo) return;
 
-    // Update state
-    const modifiedRdos = rdos.map(r => {
-      if (r.id === rdoId) {
-        return { ...r, status: newStatus };
-      }
-      return r;
-    });
-    syncAndSaveRdos(modifiedRdos);
+    try {
+      await setDoc(doc(db, 'rdos', rdoId), { ...originalRdo, status: newStatus });
 
-    // Audit logs entry
-    const audit: AuditLog = {
-      id: `aud-evnt-${Date.now()}`,
-      rdoId,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      timestamp: new Date().toISOString(),
-      changes: changes,
-      justification: justification,
-      previousStatus: originalRdo.status,
-      newStatus: newStatus
-    };
+      const audit: AuditLog = {
+        id: `aud-evnt-${Date.now()}`,
+        rdoId,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userRole: currentUser.role,
+        timestamp: new Date().toISOString(),
+        changes: changes,
+        justification: justification,
+        previousStatus: originalRdo.status,
+        newStatus: newStatus
+      };
 
-    syncAndSaveAudits([audit, ...auditLogs]);
+      await setDoc(doc(db, 'audits', audit.id), audit);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `rdos/${rdoId}`);
+    }
   };
 
   // 4. Glosa worker faturamento hours adjustment
-  const handleAdjustWorkerHours = (rdoId: string, workerId: string, field: 'normalHours' | 'extraHours' | 'nightHours', newValue: number, justification: string) => {
+  const handleAdjustWorkerHours = async (rdoId: string, workerId: string, field: 'normalHours' | 'extraHours' | 'nightHours', newValue: number, justification: string) => {
     if (!currentUser) return;
 
     const originalRdo = rdos.find(r => r.id === rdoId);
@@ -260,115 +390,128 @@ export default function App() {
 
     const oldValue = worker[field];
 
-    // Alter hours in deep state
-    const updatedRdos = rdos.map(r => {
-      if (r.id === rdoId) {
-        const revisedWorkers = r.workers.map(w => {
-          if (w.id === workerId) {
-            return { ...w, [field]: newValue };
-          }
-          return w;
-        });
-        return { ...r, workers: revisedWorkers };
-      }
-      return r;
-    });
+    try {
+      const revisedWorkers = originalRdo.workers.map(w => {
+        if (w.id === workerId) {
+          return { ...w, [field]: newValue };
+        }
+        return w;
+      });
 
-    syncAndSaveRdos(updatedRdos);
+      await setDoc(doc(db, 'rdos', rdoId), { ...originalRdo, workers: revisedWorkers });
 
-    // Audit changes logger
-    const audit: AuditLog = {
-      id: `aud-evnt-${Date.now()}`,
-      rdoId,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      userRole: currentUser.role,
-      timestamp: new Date().toISOString(),
-      changes: [{
-        field: `Hora individual (${worker.name} - ${field})`,
-        oldValue: `${oldValue}h`,
-        newValue: `${newValue}h`
-      }],
-      justification: justification,
-      previousStatus: originalRdo.status,
-      newStatus: originalRdo.status // Stays approved but with glosa detail
-    };
+      const audit: AuditLog = {
+        id: `aud-evnt-${Date.now()}`,
+        rdoId,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userRole: currentUser.role,
+        timestamp: new Date().toISOString(),
+        changes: [{
+          field: `Hora individual (${worker.name} - ${field})`,
+          oldValue: `${oldValue}h`,
+          newValue: `${newValue}h`
+        }],
+        justification: justification,
+        previousStatus: originalRdo.status,
+        newStatus: originalRdo.status
+      };
 
-    renderAdjustmentLogStateChange(rdoId);
-    syncAndSaveAudits([audit, ...auditLogs]);
+      renderAdjustmentLogStateChange(rdoId);
+      await setDoc(doc(db, 'audits', audit.id), audit);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `rdos/${rdoId}`);
+    }
   };
 
-  // Re-render sub RDO tracking helper for adjustments
   const renderAdjustmentLogStateChange = (rdoId: string) => {
     // Just an internal reload cue
   };
 
-  // Registers state helpers
-  const handleAddCompany = (comp: Company) => {
-    const updated = [...companies, comp];
-    setCompanies(updated);
-    localStorage.setItem('rdo_db_companies', JSON.stringify(updated));
+  // Registers state helpers backed by Firestore
+  const handleAddCompany = async (comp: Company) => {
+    try {
+      await setDoc(doc(db, 'companies', comp.id), comp);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `companies/${comp.id}`);
+    }
   };
 
-  const handleUpdateCompany = (updatedCompany: Company) => {
-    const updated = companies.map(c => c.id === updatedCompany.id ? updatedCompany : c);
-    setCompanies(updated);
-    localStorage.setItem('rdo_db_companies', JSON.stringify(updated));
+  const handleUpdateCompany = async (updatedCompany: Company) => {
+    try {
+      await setDoc(doc(db, 'companies', updatedCompany.id), updatedCompany);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `companies/${updatedCompany.id}`);
+    }
   };
 
-  const handleDeleteCompany = (id: string) => {
+  const handleDeleteCompany = async (id: string) => {
     const linked = contracts.some(c => c.companyId === id);
     if (linked) {
       alert('Erro: Esta empresa possui contratos ativos vinculados e não pode ser removida antes de desvincular o contrato.');
       return;
     }
-    const filtered = companies.filter(c => c.id !== id);
-    setCompanies(filtered);
-    localStorage.setItem('rdo_db_companies', JSON.stringify(filtered));
+    try {
+      await deleteDoc(doc(db, 'companies', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `companies/${id}`);
+    }
   };
 
-  const handleAddContract = (cnt: Contract) => {
-    const updated = [...contracts, cnt];
-    setContracts(updated);
-    localStorage.setItem('rdo_db_contracts', JSON.stringify(updated));
+  const handleAddContract = async (cnt: Contract) => {
+    try {
+      await setDoc(doc(db, 'contracts', cnt.id), cnt);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `contracts/${cnt.id}`);
+    }
   };
 
-  const handleUpdateContract = (updatedContract: Contract) => {
-    const updated = contracts.map(c => c.id === updatedContract.id ? updatedContract : c);
-    setContracts(updated);
-    localStorage.setItem('rdo_db_contracts', JSON.stringify(updated));
+  const handleUpdateContract = async (updatedContract: Contract) => {
+    try {
+      await setDoc(doc(db, 'contracts', updatedContract.id), updatedContract);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `contracts/${updatedContract.id}`);
+    }
   };
 
-  const handleDeleteContract = (id: string) => {
+  const handleDeleteContract = async (id: string) => {
     const linkedRdo = rdos.some(r => r.contractId === id);
     if (linkedRdo) {
       alert('Erro: Este contrato possui boletins RDO de campo já cadastrados e históricos arquivados e não pode ser excluído.');
       return;
     }
-    const filtered = contracts.filter(c => c.id !== id);
-    setContracts(filtered);
-    localStorage.setItem('rdo_db_contracts', JSON.stringify(filtered));
-  };
-
-  const handleAddUser = (usr: User) => {
-    const updated = [...usersList, usr];
-    setUsersList(updated);
-    localStorage.setItem('rdo_db_users', JSON.stringify(updated));
-  };
-
-  const handleUpdateUser = (updatedUser: User) => {
-    const updated = usersList.map(u => u.id === updatedUser.id ? updatedUser : u);
-    setUsersList(updated);
-    localStorage.setItem('rdo_db_users', JSON.stringify(updated));
-    if (currentUser && currentUser.id === updatedUser.id) {
-      setCurrentUser(updatedUser);
+    try {
+      await deleteDoc(doc(db, 'contracts', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `contracts/${id}`);
     }
   };
 
-  const handleDeleteUser = (id: string) => {
-    const filtered = usersList.filter(u => u.id !== id);
-    setUsersList(filtered);
-    localStorage.setItem('rdo_db_users', JSON.stringify(filtered));
+  const handleAddUser = async (usr: User) => {
+    try {
+      await setDoc(doc(db, 'users', usr.id), usr);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `users/${usr.id}`);
+    }
+  };
+
+  const handleUpdateUser = async (updatedUser: User) => {
+    try {
+      await setDoc(doc(db, 'users', updatedUser.id), updatedUser);
+      if (currentUser && currentUser.id === updatedUser.id) {
+        setCurrentUser(updatedUser);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `users/${updatedUser.id}`);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'users', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `users/${id}`);
+    }
   };
 
   const handleCloseMeasurementPeriod = (contractId: string, companyId: string, startDate: string, endDate: string, adjustments: MeasurementAdjustment[]) => {
@@ -437,10 +580,12 @@ export default function App() {
           localStorage.setItem('rdo_active_user_email', user.email);
           localStorage.setItem('rdo_is_logged_in', 'true');
         }}
-        onRegisterUser={(user) => {
-          const updatedUsers = [...usersList, user];
-          setUsersList(updatedUsers);
-          localStorage.setItem('rdo_db_users', JSON.stringify(updatedUsers));
+        onRegisterUser={async (user) => {
+          try {
+            await setDoc(doc(db, 'users', user.id), user);
+          } catch (e) {
+            handleFirestoreError(e, OperationType.WRITE, `users/${user.id}`);
+          }
         }}
       />
     );
@@ -525,7 +670,7 @@ export default function App() {
               title="Deseja limpar todos os dados registrados?"
             >
               <RefreshCw className="w-3 h-3" />
-              <span>Limpar Banco Local</span>
+              <span>Limpar Banco Central</span>
             </button>
           )}
         </div>
