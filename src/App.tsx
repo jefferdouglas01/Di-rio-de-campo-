@@ -124,6 +124,31 @@ export default function App() {
     return null;
   });
 
+  // Custom Confirmation Dialog State using React State to bypass sandboxed iframe restrictions
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmDialog(p => ({ ...p, isOpen: false }));
+      }
+    });
+  };
+
   // Navigation states
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [viewingRdoId, setViewingRdoId] = useState<string | null>(null);
@@ -245,53 +270,55 @@ export default function App() {
   }, []);
 
   // Central Database re-seeding mechanism (restricted to super admin only)
-  const handleResetSystem = async () => {
+  const handleResetSystem = () => {
     if (currentUser?.role !== 'admin') {
       alert('Acesso negado: apenas o Administrador Geral possui permissão para limpar o banco central.');
       return;
     }
-    const isConfirm = window.confirm('Tem certeza de que deseja resetar os dados no Firestore? Todas as alterações de todas as empresas e dispositivos serão limpas e redefinidas para os dados iniciais.');
-    if (isConfirm) {
-      try {
-        const collectionsToReset = ['rdos', 'companies', 'contracts', 'users', 'audits'];
-        
-        for (const colName of collectionsToReset) {
-          const snap = await getDocs(collection(db, colName));
-          for (const docItem of snap.docs) {
-            await deleteDoc(doc(db, colName, docItem.id));
+    triggerConfirm(
+      'Resetar Banco Central?',
+      'Tem certeza de que deseja resetar os dados no Firestore? Todas as alterações de todas as empresas e dispositivos serão limpas e redefinidas para os dados iniciais.',
+      async () => {
+        try {
+          const collectionsToReset = ['rdos', 'companies', 'contracts', 'users', 'audits'];
+          
+          for (const colName of collectionsToReset) {
+            const snap = await getDocs(collection(db, colName));
+            for (const docItem of snap.docs) {
+              await deleteDoc(doc(db, colName, docItem.id));
+            }
           }
-        }
 
-        for (const comp of INITIAL_COMPANIES) {
-          await setDoc(doc(db, 'companies', comp.id), comp);
-        }
-        for (const cnt of INITIAL_CONTRACTS) {
-          await setDoc(doc(db, 'contracts', cnt.id), cnt);
-        }
-        for (const usr of INITIAL_USERS) {
-          await setDoc(doc(db, 'users', usr.id), usr);
-        }
-        for (const rdo of INITIAL_RDOS) {
-          await setDoc(doc(db, 'rdos', rdo.id), rdo);
-        }
-        for (const aud of INITIAL_AUDIT_LOGS) {
-          await setDoc(doc(db, 'audits', aud.id), aud);
-        }
+          for (const comp of INITIAL_COMPANIES) {
+            await setDoc(doc(db, 'companies', comp.id), comp);
+          }
+          for (const cnt of INITIAL_CONTRACTS) {
+            await setDoc(doc(db, 'contracts', cnt.id), cnt);
+          }
+          for (const usr of INITIAL_USERS) {
+            await setDoc(doc(db, 'users', usr.id), usr);
+          }
+          for (const rdo of INITIAL_RDOS) {
+            await setDoc(doc(db, 'rdos', rdo.id), rdo);
+          }
+          for (const aud of INITIAL_AUDIT_LOGS) {
+            await setDoc(doc(db, 'audits', aud.id), aud);
+          }
 
-        localStorage.clear();
-        setCurrentUser(null);
-        setIsLoggedIn(false);
-        setActiveTab('dashboard');
-        setViewingRdoId(null);
-        setEditingRdoId(null);
-        setIsCreatingNewRdo(false);
+          localStorage.clear();
+          setCurrentUser(null);
+          setIsLoggedIn(false);
+          setActiveTab('dashboard');
+          setViewingRdoId(null);
+          setEditingRdoId(null);
+          setIsCreatingNewRdo(false);
 
-        alert('Banco central de dados sincronizado e resetado com sucesso para todos os dispositivos!');
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, 'central_reset');
-        alert('Ocorreu um erro ao redefinir os dados corporativos no Firestore.');
+          alert('Banco central de dados sincronizado e resetado com sucesso para todos os dispositivos!');
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, 'reset-database');
+        }
       }
-    }
+    );
   };
 
   const handleLogout = () => {
@@ -348,15 +375,19 @@ export default function App() {
   };
 
   // 2. Clear / Delete RDO
-  const handleDeleteRdoRecord = async (rdoId: string) => {
-    const isConfirm = window.confirm('Deseja excluir definitivamente este rascunho de RDO? Esta ação não possui retorno.');
-    if (isConfirm) {
-      try {
-        await deleteDoc(doc(db, 'rdos', rdoId));
-      } catch (e) {
-        handleFirestoreError(e, OperationType.DELETE, `rdos/${rdoId}`);
+  const handleDeleteRdoRecord = (rdoId: string) => {
+    triggerConfirm(
+      'Excluir RDO definitivo?',
+      'Deseja excluir definitivamente este rascunho de RDO? Esta ação não possui retorno.',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'rdos', rdoId));
+          alert('RDO excluído com sucesso!');
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, `rdos/${rdoId}`);
+        }
       }
-    }
+    );
   };
 
   // 3. Workflow Status update with mandatory justification
@@ -455,20 +486,24 @@ export default function App() {
     }
   };
 
-  const handleDeleteCompany = async (id: string) => {
+  const handleDeleteCompany = (id: string) => {
     const linked = contracts.some(c => c.companyId === id);
     if (linked) {
       alert('Erro: Esta empresa possui contratos ativos vinculados e não pode ser removida antes de desvincular o contrato.');
       return;
     }
-    const isConfirm = window.confirm('Deseja realmente excluir esta empresa cadastrada? Esta ação é irreversível.');
-    if (!isConfirm) return;
-    try {
-      await deleteDoc(doc(db, 'companies', id));
-      alert('Empresa removida com sucesso!');
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `companies/${id}`);
-    }
+    triggerConfirm(
+      'Excluir Empresa?',
+      'Deseja realmente excluir esta empresa cadastrada? Esta ação é irreversível.',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'companies', id));
+          alert('Empresa removida com sucesso!');
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, `companies/${id}`);
+        }
+      }
+    );
   };
 
   const handleAddContract = async (cnt: Contract) => {
@@ -487,20 +522,24 @@ export default function App() {
     }
   };
 
-  const handleDeleteContract = async (id: string) => {
+  const handleDeleteContract = (id: string) => {
     const linkedRdo = rdos.some(r => r.contractId === id);
     if (linkedRdo) {
       alert('Erro: Este contrato possui boletins RDO de campo já cadastrados e históricos arquivados e não pode ser excluído.');
       return;
     }
-    const isConfirm = window.confirm('Deseja realmente excluir este contrato cadastrado? Esta ação é irreversível.');
-    if (!isConfirm) return;
-    try {
-      await deleteDoc(doc(db, 'contracts', id));
-      alert('Contrato excluído com sucesso!');
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `contracts/${id}`);
-    }
+    triggerConfirm(
+      'Excluir Contrato?',
+      'Deseja realmente excluir este contrato cadastrado? Esta ação é irreversível.',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'contracts', id));
+          alert('Contrato excluído com sucesso!');
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, `contracts/${id}`);
+        }
+      }
+    );
   };
 
   const handleAddUser = async (usr: User) => {
@@ -522,15 +561,19 @@ export default function App() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    const isConfirm = window.confirm('Deseja realmente remover o acesso de usuário deste profissional?');
-    if (!isConfirm) return;
-    try {
-      await deleteDoc(doc(db, 'users', id));
-      alert('Usuário removido do sistema!');
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `users/${id}`);
-    }
+  const handleDeleteUser = (id: string) => {
+    triggerConfirm(
+      'Excluir Usuário?',
+      'Deseja realmente remover o acesso de usuário deste profissional?',
+      async () => {
+        try {
+          await deleteDoc(doc(db, 'users', id));
+          alert('Usuário removido do sistema!');
+        } catch (e) {
+          handleFirestoreError(e, OperationType.DELETE, `users/${id}`);
+        }
+      }
+    );
   };
 
   const handleCloseMeasurementPeriod = (contractId: string, companyId: string, startDate: string, endDate: string, adjustments: MeasurementAdjustment[]) => {
@@ -940,6 +983,43 @@ export default function App() {
         </main>
 
       </div>
+
+      {/* Custom, Non-Blocking State Confirmation Modal replacing window.confirm */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 z-[999] flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn" id="custom-confirmation-dialog">
+          <div className="bg-white border border-gray-255 rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center space-y-4">
+            <div className="mx-auto w-12 h-12 bg-red-100 text-red-650 rounded-full flex items-center justify-center ring-4 ring-red-50">
+              <ShieldAlert className="w-6 h-6 animate-pulse" />
+            </div>
+            
+            <div className="space-y-1">
+              <h3 className="text-sm font-sans font-extrabold text-gray-900 tracking-tight leading-snug">
+                {confirmDialog.title}
+              </h3>
+              <p className="text-xs text-gray-500 leading-relaxed font-semibold px-2">
+                {confirmDialog.message}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="w-1/2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-all cursor-pointer border border-gray-250"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className="w-1/2 px-4 py-2.5 bg-red-600 hover:bg-red-500 border border-red-700 hover:border-red-600 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md shadow-red-500/10"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
