@@ -28,6 +28,7 @@ interface RegistrationViewProps {
   currentUser: User;
   onAddCompany: (comp: Company) => void;
   onAddContract: (cnt: Contract) => void;
+  onUpdateContract: (cnt: Contract) => void;
   onAddUser: (usr: User) => void;
   onUpdateUser: (usr: User) => void;
   onDeleteCompany: (id: string) => void;
@@ -42,6 +43,7 @@ export function RegistrationView({
   currentUser,
   onAddCompany,
   onAddContract,
+  onUpdateContract,
   onAddUser,
   onUpdateUser,
   onDeleteCompany,
@@ -109,6 +111,54 @@ export function RegistrationView({
     onUpdateUser(updatedUser);
     setEditingUserId(null);
     alert('Cadastro do colaborador e permissões de acesso atualizados com sucesso!');
+  };
+
+  // Editing Contract States for administrators
+  const [editingContractId, setEditingContractId] = useState<string | null>(null);
+  const [editingContractNumber, setEditingContractNumber] = useState<string>('');
+  const [editingContractClient, setEditingContractClient] = useState<string>('');
+  const [editingContractCompanyId, setEditingContractCompanyId] = useState<string>('');
+  const [editingContractScope, setEditingContractScope] = useState<string>('');
+  const [editingContractRegime, setEditingContractRegime] = useState<string>('');
+  const [editingContractRateRule, setEditingContractRateRule] = useState<string>('');
+  const [editingContractCostCenter, setEditingContractCostCenter] = useState<string>('');
+  const [editingContractSiteLocation, setEditingContractSiteLocation] = useState<string>('');
+
+  const handleStartContractEdit = (cnt: Contract) => {
+    setEditingContractId(cnt.id);
+    setEditingContractNumber(cnt.contractNumber);
+    setEditingContractClient(cnt.client);
+    setEditingContractCompanyId(cnt.companyId);
+    setEditingContractScope(cnt.scope);
+    setEditingContractRegime(cnt.measurementRegime);
+    setEditingContractRateRule(cnt.rateRule);
+    setEditingContractCostCenter(cnt.costCenter);
+    setEditingContractSiteLocation(cnt.siteLocation);
+  };
+
+  const handleSaveContractEdit = () => {
+    if (!editingContractId || !editingContractNumber.trim() || !editingContractClient.trim() || !editingContractCompanyId) {
+      alert('Por favor, informe o número do contrato, cliente e empresa terceirizada vinculada.');
+      return;
+    }
+    const originalContract = contracts.find(c => c.id === editingContractId);
+    if (!originalContract) return;
+
+    const updatedContract: Contract = {
+      ...originalContract,
+      contractNumber: editingContractNumber.trim(),
+      client: editingContractClient.trim(),
+      companyId: editingContractCompanyId,
+      scope: editingContractScope.trim(),
+      measurementRegime: editingContractRegime,
+      rateRule: editingContractRateRule.trim(),
+      costCenter: editingContractCostCenter.trim(),
+      siteLocation: editingContractSiteLocation.trim()
+    };
+
+    onUpdateContract(updatedContract);
+    setEditingContractId(null);
+    alert('Contrato atualizado com sucesso!');
   };
 
   // Creation dispatches
@@ -596,34 +646,132 @@ export function RegistrationView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs font-semibold">
-                    {contracts.map((cnt) => {
-                      const comp = companies.find(c => c.id === cnt.companyId);
-                      return (
-                        <tr key={cnt.id} className="hover:bg-slate-50/50">
-                          <td className="p-4">
-                            <span className="font-bold text-blue-700 block font-mono bg-blue-50 px-2 py-0.5 rounded-sm w-fit truncate">{cnt.contractNumber}</span>
-                            <span className="text-[10px] text-gray-450 font-mono mt-1 block">CC: {cnt.costCenter}</span>
-                          </td>
-                          <td className="p-4 text-gray-800 font-bold">{cnt.client}</td>
-                          <td className="p-4 text-gray-500 font-medium truncate max-w-[150px]">{comp?.name || 'Não cadastrada'}</td>
-                          <td className="p-4 text-gray-600 max-w-xs leading-relaxed font-normal whitespace-pre-wrap">{cnt.scope}</td>
-                          <td className="p-4">
-                            <span className="block text-gray-700 font-bold">{cnt.measurementRegime}</span>
-                            <span className="text-[10px] text-gray-400 block mt-0.5">{cnt.rateRule}</span>
-                          </td>
-                          {isAdmin && (
-                            <td className="p-4 text-right">
-                              <button
-                                onClick={() => onDeleteContract(cnt.id)}
-                                className="p-1 px-2 hover:bg-red-50 text-gray-450 hover:text-red-700 rounded transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
+                     {contracts.map((cnt) => {
+                       const comp = companies.find(c => c.id === cnt.companyId);
+
+                       if (editingContractId === cnt.id) {
+                         return (
+                           <tr key={cnt.id} className="bg-blue-50/60 hover:bg-blue-50">
+                             <td className="p-3">
+                               <div className="space-y-1">
+                                 <span className="text-[9px] text-gray-500 uppercase font-sans">Nº Contrato:</span>
+                                 <input
+                                   type="text"
+                                   value={editingContractNumber}
+                                   onChange={(e) => setEditingContractNumber(e.target.value)}
+                                   className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-gray-800 outline-hidden focus:border-blue-550 focus:ring-1 focus:ring-blue-500/20"
+                                 />
+                                 <span className="text-[9px] text-gray-500 uppercase font-sans block mt-1">CC:</span>
+                                 <input
+                                   type="text"
+                                   value={editingContractCostCenter}
+                                   onChange={(e) => setEditingContractCostCenter(e.target.value)}
+                                   className="w-full bg-white border border-gray-300 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-gray-800 outline-hidden focus:border-blue-550"
+                                 />
+                               </div>
+                             </td>
+                             <td className="p-3">
+                               <span className="text-[9px] text-gray-500 uppercase font-sans block">Cliente:</span>
+                               <input
+                                 type="text"
+                                 value={editingContractClient}
+                                 onChange={(e) => setEditingContractClient(e.target.value)}
+                                 className="w-full bg-white border border-gray-300 rounded-lg px-2 py-1 text-xs font-bold text-gray-800 outline-hidden"
+                               />
+                             </td>
+                             <td className="p-3">
+                               <span className="text-[9px] text-gray-500 uppercase font-sans block">Fornecedora:</span>
+                               <select
+                                 value={editingContractCompanyId}
+                                 onChange={(e) => setEditingContractCompanyId(e.target.value)}
+                                 className="w-full bg-white border border-gray-300 rounded-lg p-1 text-xs font-bold text-gray-800"
+                               >
+                                 <option value="">-- Escolha --</option>
+                                 {companies.map(c => (
+                                   <option key={c.id} value={c.id}>{c.name}</option>
+                                 ))}
+                               </select>
+                             </td>
+                             <td className="p-3">
+                               <span className="text-[9px] text-gray-500 uppercase font-sans block">Escopo:</span>
+                               <textarea
+                                 value={editingContractScope}
+                                 onChange={(e) => setEditingContractScope(e.target.value)}
+                                 rows={2}
+                                 className="w-full bg-white border border-gray-300 rounded-lg p-1.5 text-xs text-gray-800 leading-relaxed outline-hidden font-normal"
+                               />
+                             </td>
+                             <td className="p-3">
+                               <span className="text-[9px] text-gray-500 uppercase font-sans block">Regime / Regra:</span>
+                               <select
+                                 value={editingContractRegime}
+                                 onChange={(e) => setEditingContractRegime(e.target.value)}
+                                 className="w-full bg-white border border-gray-300 rounded-lg p-0.5 text-[11px] font-bold text-gray-800 mb-1"
+                               >
+                                 <option value="Horas Homem (H/H)">Horas Homem (H/H)</option>
+                                 <option value="Preço Unitário (M2, M, Unid)">Preço Unitário</option>
+                                 <option value="Preço Fixo Global">Preço Fixo Global</option>
+                               </select>
+                               <input
+                                 type="text"
+                                 value={editingContractRateRule}
+                                 onChange={(e) => setEditingContractRateRule(e.target.value)}
+                                 className="w-full bg-white border border-gray-300 rounded-lg px-1.5 py-0.5 text-[10px] text-gray-750 font-sans outline-hidden"
+                                 placeholder="Regra de tarifa"
+                               />
+                             </td>
+                             <td className="p-3 text-right space-y-1.5 whitespace-nowrap align-middle">
+                               <button
+                                 onClick={handleSaveContractEdit}
+                                 className="w-full block px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold cursor-pointer transition-all"
+                               >
+                                 Salvar
+                               </button>
+                               <button
+                                 onClick={() => setEditingContractId(null)}
+                                 className="w-full block px-2.5 py-1.5 bg-gray-250 hover:bg-gray-300 text-gray-700 rounded-md text-[10px] font-bold cursor-pointer transition-all border border-gray-200"
+                               >
+                                 Cancelar
+                               </button>
+                             </td>
+                           </tr>
+                         );
+                       }
+
+                       return (
+                         <tr key={cnt.id} className="hover:bg-slate-50/50">
+                           <td className="p-4">
+                             <span className="font-bold text-blue-700 block font-mono bg-blue-50 px-2 py-0.5 rounded-sm w-fit truncate">{cnt.contractNumber}</span>
+                             <span className="text-[10px] text-gray-450 font-mono mt-1 block">CC: {cnt.costCenter}</span>
+                           </td>
+                           <td className="p-4 text-gray-800 font-bold">{cnt.client}</td>
+                           <td className="p-4 text-gray-500 font-medium truncate max-w-[150px]">{comp?.name || 'Não cadastrada'}</td>
+                           <td className="p-4 text-gray-600 max-w-xs leading-relaxed font-normal whitespace-pre-wrap">{cnt.scope}</td>
+                           <td className="p-4">
+                             <span className="block text-gray-700 font-bold">{cnt.measurementRegime}</span>
+                             <span className="text-[10px] text-gray-400 block mt-0.5">{cnt.rateRule}</span>
+                           </td>
+                           {isAdmin && (
+                             <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                               <button
+                                 onClick={() => handleStartContractEdit(cnt)}
+                                 className="p-1 px-2.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all border border-slate-200 cursor-pointer inline-block"
+                                 title="Editar este contrato"
+                               >
+                                 Editar
+                               </button>
+                               <button
+                                 onClick={() => onDeleteContract(cnt.id)}
+                                 className="p-1 px-2 hover:bg-red-50 text-gray-450 hover:text-red-700 rounded transition-colors cursor-pointer inline-block"
+                                 title="Excluir este contrato"
+                               >
+                                 <Trash2 className="w-3.5 h-3.5" />
+                               </button>
+                             </td>
+                           )}
+                         </tr>
+                       );
+                     })}
                   </tbody>
                 </table>
               </div>

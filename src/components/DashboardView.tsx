@@ -28,6 +28,15 @@ interface DashboardProps {
   onViewRdo: (rdoId: string) => void;
 }
 
+export function formatDateBR(dateStr: string) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+}
+
 export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewRdo }: DashboardProps) {
   // Metrics calculated dynamically
   const totalRdos = rdos.length;
@@ -35,8 +44,8 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
   const correctionRequested = rdos.filter(r => r.status === 'Correção solicitada').length;
   const approvedCount = rdos.filter(r => r.status === 'Aprovado' || r.status === 'Bloqueado para medição' || r.status === 'Medido').length;
 
-  // Calculo de inadimplência (Companies that have not launched RDO for "today" - let's say the current date of the system: '2026-06-05')
-  const defaultToday = '2026-06-05';
+  // Calculo de inadimplência baseado na data dinâmica corrente do dia (coerente com a data real)
+  const defaultToday = new Date().toISOString().split('T')[0];
   const companiesLinked = companies.filter(c => contracts.some(con => con.companyId === c.id));
   const missingToday = companiesLinked.filter(comp => {
     // Check if this company has an RDO for 2026-06-05
@@ -111,7 +120,7 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
       id: `alt-inad-${comp.id}`,
       type: 'danger',
       title: 'RDO Ausente Hoje',
-      desc: `A empresa "${comp.name}" ainda não lançou o Relatório Diário de Obra para a data limite de hoje (${defaultToday}).`,
+      desc: `A empresa "${comp.name}" ainda não lançou o Relatório Diário de Obra para a data limite de hoje (${formatDateBR(defaultToday)}).`,
     });
   });
 
@@ -141,10 +150,7 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
             Acompanhe o andamento dos lançamentos, horas de efetivo, aprovações de RDO e medição contratual de {companiesLinked.length} empresas.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg text-xs font-mono text-gray-500 shadow-xs">
-          <Calendar className="w-4 h-4 text-gray-400" />
-          <span>Data Limite Hoje: 05/06/2026</span>
-        </div>
+        {/* Removido indicador estático de Data Limite conforme solicitado */}
       </div>
 
       {/* KPI Cards Grid */}
@@ -349,8 +355,8 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
           <div className="bg-white border border-gray-200/80 rounded-xl p-6 shadow-xs">
             <h3 className="font-sans font-semibold text-gray-900 text-base mb-4 flex items-center justify-between">
               <span>Status de Lançamento Diário</span>
-              <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full uppercase">
-                Hoje: {defaultToday}
+              <span className="text-[10px] font-semibold text-red-650 bg-red-50 px-2 py-0.5 rounded-full uppercase">
+                Hoje: {formatDateBR(defaultToday)}
               </span>
             </h3>
 

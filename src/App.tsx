@@ -320,6 +320,12 @@ export default function App() {
     localStorage.setItem('rdo_db_contracts', JSON.stringify(updated));
   };
 
+  const handleUpdateContract = (updatedContract: Contract) => {
+    const updated = contracts.map(c => c.id === updatedContract.id ? updatedContract : c);
+    setContracts(updated);
+    localStorage.setItem('rdo_db_contracts', JSON.stringify(updated));
+  };
+
   const handleDeleteContract = (id: string) => {
     const linkedRdo = rdos.some(r => r.contractId === id);
     if (linkedRdo) {
@@ -692,6 +698,7 @@ export default function App() {
                   currentUser={currentUser!}
                   onAddCompany={handleAddCompany}
                   onAddContract={handleAddContract}
+                  onUpdateContract={handleUpdateContract}
                   onAddUser={handleAddUser}
                   onUpdateUser={handleUpdateUser}
                   onDeleteCompany={handleDeleteCompany}

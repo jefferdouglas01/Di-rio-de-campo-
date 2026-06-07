@@ -289,31 +289,6 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
             </div>
           </form>
         )}
-
-        {/* Demo Accounts Callout Section */}
-        {!isRegistering && (
-          <div className="border-t border-slate-900 pt-5 space-y-3">
-            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800/60">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">
-                Acesso Inicial Administrador Padrão
-              </span>
-              <div className="mt-2 space-y-1 text-slate-350 font-sans">
-                <p className="text-xs flex justify-between">
-                  <span className="font-medium text-slate-400">E-mail:</span>
-                  <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded text-[11px] select-all border border-slate-800">admin@rdo.com</span>
-                </p>
-                <p className="text-xs flex justify-between">
-                  <span className="font-medium text-slate-400">Senha:</span>
-                  <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded text-[11px] select-all border border-slate-800">admin</span>
-                </p>
-              </div>
-              <span className="text-[10px] text-indigo-400 mt-2.5 block leading-relaxed">
-                * Nota: Para testar a funcionalidade completa de aprovação, você pode criar uma nova conta e depois entrar como Administrador Geral para conceder as devidas permissões!
-              </span>
-            </div>
-          </div>
-        )}
-
       </div>
     </div>
   );
