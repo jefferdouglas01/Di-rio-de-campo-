@@ -52,6 +52,26 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   alert(userAlert);
 }
 
+function cleanObject<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanObject(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const val = obj[key];
+        if (val !== undefined) {
+          cleaned[key] = cleanObject(val);
+        }
+      }
+    }
+    return cleaned as T;
+  }
+  return obj;
+}
+
 // Component imports
 import { DashboardView } from './components/DashboardView';
 import { RdoListView } from './components/RdoListView';
@@ -472,7 +492,8 @@ export default function App() {
   // Registers state helpers backed by Firestore
   const handleAddCompany = async (comp: Company) => {
     try {
-      await setDoc(doc(db, 'companies', comp.id), comp);
+      const cleaned = cleanObject(comp);
+      await setDoc(doc(db, 'companies', cleaned.id), cleaned);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `companies/${comp.id}`);
     }
@@ -480,7 +501,8 @@ export default function App() {
 
   const handleUpdateCompany = async (updatedCompany: Company) => {
     try {
-      await setDoc(doc(db, 'companies', updatedCompany.id), updatedCompany);
+      const cleaned = cleanObject(updatedCompany);
+      await setDoc(doc(db, 'companies', cleaned.id), cleaned);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `companies/${updatedCompany.id}`);
     }
@@ -508,7 +530,8 @@ export default function App() {
 
   const handleAddContract = async (cnt: Contract) => {
     try {
-      await setDoc(doc(db, 'contracts', cnt.id), cnt);
+      const cleaned = cleanObject(cnt);
+      await setDoc(doc(db, 'contracts', cleaned.id), cleaned);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `contracts/${cnt.id}`);
     }
@@ -516,7 +539,8 @@ export default function App() {
 
   const handleUpdateContract = async (updatedContract: Contract) => {
     try {
-      await setDoc(doc(db, 'contracts', updatedContract.id), updatedContract);
+      const cleaned = cleanObject(updatedContract);
+      await setDoc(doc(db, 'contracts', cleaned.id), cleaned);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `contracts/${updatedContract.id}`);
     }
@@ -544,7 +568,8 @@ export default function App() {
 
   const handleAddUser = async (usr: User) => {
     try {
-      await setDoc(doc(db, 'users', usr.id), usr);
+      const cleaned = cleanObject(usr);
+      await setDoc(doc(db, 'users', cleaned.id), cleaned);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `users/${usr.id}`);
     }
@@ -552,9 +577,10 @@ export default function App() {
 
   const handleUpdateUser = async (updatedUser: User) => {
     try {
-      await setDoc(doc(db, 'users', updatedUser.id), updatedUser);
-      if (currentUser && currentUser.id === updatedUser.id) {
-        setCurrentUser(updatedUser);
+      const cleaned = cleanObject(updatedUser);
+      await setDoc(doc(db, 'users', cleaned.id), cleaned);
+      if (currentUser && currentUser.id === cleaned.id) {
+        setCurrentUser(cleaned);
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `users/${updatedUser.id}`);
@@ -644,7 +670,8 @@ export default function App() {
         }}
         onRegisterUser={async (user) => {
           try {
-            await setDoc(doc(db, 'users', user.id), user);
+            const cleaned = cleanObject(user);
+            await setDoc(doc(db, 'users', cleaned.id), cleaned);
           } catch (e) {
             handleFirestoreError(e, OperationType.WRITE, `users/${user.id}`);
           }
