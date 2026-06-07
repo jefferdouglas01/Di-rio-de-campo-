@@ -180,6 +180,15 @@ export function RdoDetailView({
           </span>
 
           {/* Quick measurement restriction indicators */}
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-xs transition-all cursor-pointer print:hidden"
+            title="Exportar diário em PDF corporativo de alta definição"
+          >
+            <FileText className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+            <span>Imprimir RDO (PDF)</span>
+          </button>
+
           {rdo.status === 'Medido' && (
             <span className="text-[10px] font-bold px-2 px-3 py-1.5 rounded-full bg-purple-100 text-purple-700">
               Fechado em Medição Externa

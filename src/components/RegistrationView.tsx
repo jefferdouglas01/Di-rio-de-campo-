@@ -71,6 +71,9 @@ export function RegistrationView({
   const [cntRate, setCntRate] = useState<string>('');
   const [cntCc, setCntCc] = useState<string>('');
   const [cntLoc, setCntLoc] = useState<string>('');
+  const [cntRateNormal, setCntRateNormal] = useState<string>('115');
+  const [cntRateExtra, setCntRateExtra] = useState<string>('230');
+  const [cntRateNight, setCntRateNight] = useState<string>('138');
 
   // Form inputs states: User
   const [usrName, setUsrName] = useState<string>('');
@@ -164,6 +167,9 @@ export function RegistrationView({
   const [editingContractRateRule, setEditingContractRateRule] = useState<string>('');
   const [editingContractCostCenter, setEditingContractCostCenter] = useState<string>('');
   const [editingContractSiteLocation, setEditingContractSiteLocation] = useState<string>('');
+  const [editingContractRateNormal, setEditingContractRateNormal] = useState<string>('');
+  const [editingContractRateExtra, setEditingContractRateExtra] = useState<string>('');
+  const [editingContractRateNight, setEditingContractRateNight] = useState<string>('');
 
   const handleStartContractEdit = (cnt: Contract) => {
     setEditingContractId(cnt.id);
@@ -175,6 +181,9 @@ export function RegistrationView({
     setEditingContractRateRule(cnt.rateRule);
     setEditingContractCostCenter(cnt.costCenter);
     setEditingContractSiteLocation(cnt.siteLocation);
+    setEditingContractRateNormal(String(cnt.rateNormal !== undefined ? cnt.rateNormal : 115));
+    setEditingContractRateExtra(String(cnt.rateExtra !== undefined ? cnt.rateExtra : 230));
+    setEditingContractRateNight(String(cnt.rateNight !== undefined ? cnt.rateNight : 138));
   };
 
   const handleSaveContractEdit = () => {
@@ -194,7 +203,10 @@ export function RegistrationView({
       measurementRegime: editingContractRegime,
       rateRule: editingContractRateRule.trim(),
       costCenter: editingContractCostCenter.trim(),
-      siteLocation: editingContractSiteLocation.trim()
+      siteLocation: editingContractSiteLocation.trim(),
+      rateNormal: Number(editingContractRateNormal) || 0,
+      rateExtra: Number(editingContractRateExtra) || 0,
+      rateNight: Number(editingContractRateNight) || 0
     };
 
     onUpdateContract(updatedContract);
@@ -246,7 +258,10 @@ export function RegistrationView({
       measurementRegime: cntRegime,
       rateRule: cntRate || 'Faturamento por H/H aprovado sob diário',
       costCenter: cntCc || 'CC-OBRA-GERAL',
-      siteLocation: cntLoc || 'Canteiro Principal'
+      siteLocation: cntLoc || 'Canteiro Principal',
+      rateNormal: Number(cntRateNormal) || 0,
+      rateExtra: Number(cntRateExtra) || 0,
+      rateNight: Number(cntRateNight) || 0
     };
     onAddContract(payload);
 
@@ -257,6 +272,9 @@ export function RegistrationView({
     setCntRate('');
     setCntCc('');
     setCntLoc('');
+    setCntRateNormal('115');
+    setCntRateExtra('230');
+    setCntRateNight('138');
     alert('Contrato vinculado com sucesso!');
   };
 
@@ -514,6 +532,39 @@ export function RegistrationView({
                     placeholder="Ex: R$ 98,00 / hora técnico"
                     className="border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs font-semibold text-gray-700"
                   />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1 text-xs">
+                    <label className="font-bold text-gray-600">Tarifa Normal (R$)</label>
+                    <input
+                      type="number"
+                      value={cntRateNormal}
+                      onChange={(e) => setCntRateNormal(e.target.value)}
+                      placeholder="115"
+                      className="border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs">
+                    <label className="font-bold text-gray-600">Tarifa Extra (R$)</label>
+                    <input
+                      type="number"
+                      value={cntRateExtra}
+                      onChange={(e) => setCntRateExtra(e.target.value)}
+                      placeholder="230"
+                      className="border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs">
+                    <label className="font-bold text-gray-600">Tarifa Noturna (R$)</label>
+                    <input
+                      type="number"
+                      value={cntRateNight}
+                      onChange={(e) => setCntRateNight(e.target.value)}
+                      placeholder="138"
+                      className="border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs font-semibold text-gray-800"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-1 text-xs">
@@ -839,6 +890,37 @@ export function RegistrationView({
                                  onChange={(e) => setEditingContractRateRule(e.target.value)}
                                  className="w-full bg-white border border-gray-300 rounded-lg px-1.5 py-0.5 text-[10px] text-gray-750 font-sans outline-hidden"
                                  placeholder="Regra de tarifa"
+                                />
+                                <div className="grid grid-cols-3 gap-1 mt-1.5 text-[10px]">
+                                  <div>
+                                    <span className="text-[8px] text-gray-400 block font-normal text-left">Norm. (R$):</span>
+                                    <input
+                                      type="number"
+                                      value={editingContractRateNormal}
+                                      onChange={(e) => setEditingContractRateNormal(e.target.value)}
+                                      className="w-full bg-white border border-gray-300 rounded-sm px-1 py-0.5 text-xs text-gray-850 font-bold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[8px] text-gray-400 block font-normal text-left font-sans">Extra (R$):</span>
+                                    <input
+                                      type="number"
+                                      value={editingContractRateExtra}
+                                      onChange={(e) => setEditingContractRateExtra(e.target.value)}
+                                      className="w-full bg-white border border-gray-300 rounded-sm px-1 py-0.5 text-xs text-gray-850 font-bold"
+                                    />
+                                  </div>
+                                  <div>
+                                    <span className="text-[8px] text-gray-400 block font-normal text-left font-sans">Not. (R$):</span>
+                                    <input
+                                      type="number"
+                                      value={editingContractRateNight}
+                                      onChange={(e) => setEditingContractRateNight(e.target.value)}
+                                      className="w-full bg-white border border-gray-300 rounded-sm px-1 py-0.5 text-xs text-gray-850 font-bold"
+                                    />
+                                  </div>
+                                </div>
+                                <span className="hidden"
                                />
                              </td>
                              <td className="p-3 text-right space-y-1.5 whitespace-nowrap align-middle">
@@ -871,6 +953,13 @@ export function RegistrationView({
                            <td className="p-4">
                              <span className="block text-gray-700 font-bold">{cnt.measurementRegime}</span>
                              <span className="text-[10px] text-gray-400 block mt-0.5">{cnt.rateRule}</span>
+                              <div className="mt-1 flex gap-1.5 text-[10px] font-mono text-blue-650 bg-blue-50/50 w-fit px-1.5 py-0.5 rounded-sm">
+                                <span>Norm: R${cnt.rateNormal !== undefined ? cnt.rateNormal : 115}</span>
+                                <span>|</span>
+                                <span>Ext: R${cnt.rateExtra !== undefined ? cnt.rateExtra : 230}</span>
+                                <span>|</span>
+                                <span>Not: R${cnt.rateNight !== undefined ? cnt.rateNight : 138}</span>
+                              </div>
                            </td>
                            {isAdmin && (
                              <td className="p-4 text-right space-x-2 whitespace-nowrap">

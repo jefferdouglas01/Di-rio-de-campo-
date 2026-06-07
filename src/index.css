@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+@media print {
+  /* Hide background colors, use high contrast text colors */
+  html, body {
+    background-color: white !important;
+    background-image: none !important;
+    color: black !important;
+    font-size: 11pt !important;
+  }
+
+  /* Exclude all unneeded background elements and shadows */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Set print dimensions */
+  @page {
+    margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+    size: portrait;
+  }
+
+  /* Hide print-hidden classes */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Force display when printing */
+  .print\:block {
+    display: block !important;
+  }
+  
+  /* Remove rounded borders and border grids on physical support if needed, but make card borders standard grey */
+  .print\:no-shadow {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+  }
+
+  /* Expand blocks to fill entire standard page */
+  .print\:w-full {
+    width: 100% !important;
+    max-w: 100% !important;
+  }
+}

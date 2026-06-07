@@ -149,9 +149,9 @@ export function MeasurementView({
   // e.g. Alfa rate: 95.00/hr normal, 1.5 multiplier extra (142.5), 1.2 multiplier night (114.0)
   // e.g. Beta rate: 115.00/hr normal, 2.0 multiplier extra (230.0), 1.2 multiplier night (138.0)
   const isAlfa = selectedCompanyId === 'comp-alfa';
-  const rateNormal = isAlfa ? 95 : 115;
-  const rateExtra = isAlfa ? 142.50 : 230.00;
-  const rateNight = isAlfa ? 114.00 : 138.00;
+  const rateNormal = (targetContract?.rateNormal !== undefined && targetContract.rateNormal !== 0) ? targetContract.rateNormal : (isAlfa ? 95 : 115);
+  const rateExtra = (targetContract?.rateExtra !== undefined && targetContract.rateExtra !== 0) ? targetContract.rateExtra : (isAlfa ? 142.50 : 230.00);
+  const rateNight = (targetContract?.rateNight !== undefined && targetContract.rateNight !== 0) ? targetContract.rateNight : (isAlfa ? 114.00 : 138.00);
 
   const financialNormal = normalHoursSum * rateNormal;
   const financialExtra = extraHoursSum * rateExtra;
@@ -225,13 +225,164 @@ export function MeasurementView({
     setAdjustments([]);
   };
 
-  // Simulated export actions
-  const handleSimulatedExport = (format: 'PDF' | 'EXCEL') => {
+  const handleExportExcel = () => {
     if (approvedRdos.length === 0) {
       alert('Sem dados consolidados para exportar no período. Verifique filiações e aprovações.');
       return;
     }
-    alert(`[Módulo de Exportação]\nO Relatório Consolidado de Medição (${format}) para o contrato ${targetContract?.contractNumber} foi gerado com sucesso!\n\nPeríodo: ${startDate} a ${endDate}\nEfetivo: ${totalClosedHours} H/H total faturado\nLíquido Gerado: R$ ${financialGrandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; }
+          .header-title { font-size: 16px; font-weight: bold; color: #1e293b; text-align: center; }
+          .sub-title { font-size: 11px; color: #64748b; text-align: center; }
+          th { background-color: #1e293b; color: #ffffff; font-weight: bold; border: 1px solid #cbd5e1; padding: 6px; font-size: 11px; }
+          td { border: 1px solid #cbd5e1; padding: 6px; font-size: 11px; }
+          .font-bold { font-weight: bold; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          .bg-gray-100 { background-color: #f1f5f9; }
+          .bg-blue-100 { background-color: #dbeafe; }
+          .text-green { color: #16a34a; font-weight: bold; }
+          .section-title { font-size: 12px; font-weight: bold; color: #0f172a; background-color: #e2e8f0; padding: 6px; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="5" class="header-title">DEMONSTRATIVO MENSAL DE MEDIÇÃO E APURAÇÃO CONSOLIDADA</td></tr>
+          <tr><td colspan="5" class="sub-title">Período: ${startDate} a ${endDate}</td></tr>
+          <tr><td colspan="5" class="sub-title">Contratante: ${targetContract?.client || 'N/A'} | Terceirizada: ${targetCompany?.name || 'N/A'}</td></tr>
+          <tr><td colspan="5" class="sub-title">Contrato nº: ${targetContract?.contractNumber || 'N/A'} | Regime: ${targetContract?.measurementRegime || 'N/A'}</td></tr>
+          <tr><td colspan="5"></td></tr>
+          
+          <tr><td colspan="5" class="section-title">FATURAMENTO ACUMULADO POR CARGO / CATEGORIA PROFISSIONAL</td></tr>
+          <tr>
+            <th>Cargo / Categoria</th>
+            <th>Horas Normais</th>
+            <th>Horas Extras</th>
+            <th>Adicional Noturno</th>
+            <th>Acumulado Total (H/H)</th>
+          </tr>
+    `;
+
+    Object.values(hoursByRole).forEach(hr => {
+      html += `
+        <tr>
+          <td class="font-bold">${hr.role}</td>
+          <td class="text-center">${hr.normal}h</td>
+          <td class="text-center">${hr.extra}h</td>
+          <td class="text-center">${hr.night}h</td>
+          <td class="text-right font-bold bg-gray-100">${hr.total} H/H</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          <tr><td colspan="5"></td></tr>
+          
+          <tr><td colspan="5" class="section-title">DESCRITIVO FINANCEIRO DA APURAÇÃO</td></tr>
+          <tr>
+            <td colspan="3" class="font-bold bg-gray-100">Item de Custo / Tipo de Tarifa</td>
+            <td class="font-bold text-center bg-gray-100">Quantidade Apurada</td>
+            <td class="font-bold text-right bg-gray-100">Valor Total (R$)</td>
+          </tr>
+          <tr>
+            <td colspan="3">Faturamento - Horas Normais (R$ ${rateNormal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/h)</td>
+            <td class="text-center">${normalHoursSum}h</td>
+            <td class="text-right">R$ ${financialNormal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td colspan="3">Faturamento - Horas Extras (R$ ${rateExtra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/h)</td>
+            <td class="text-center">${extraHoursSum}h</td>
+            <td class="text-right">R$ ${financialExtra.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td colspan="3">Faturamento - Adicional Noturno (R$ ${rateNight.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/h)</td>
+            <td class="text-center">${nightHoursSum}h</td>
+            <td class="text-right">R$ ${financialNight.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+          <tr class="font-bold bg-gray-100">
+            <td colspan="3">Subtotal de Faturamento Consolidado</td>
+            <td class="text-center">${totalClosedHours} H/H</td>
+            <td class="text-right">R$ ${financialSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+    `;
+
+    if (adjustments.length > 0) {
+      html += `
+          <tr><td colspan="5" class="section-title">GLOSAS E AJUSTES DE MEDIÇÃO</td></tr>
+      `;
+      adjustments.forEach(adj => {
+        html += `
+          <tr>
+            <td colspan="3">${adj.description} (Justificativa: ${adj.justification})</td>
+            <td class="text-center">-</td>
+            <td class="text-right" style="color: ${adj.valueEffect < 0 ? '#b91c1c' : '#16a34a'}">R$ ${adj.valueEffect.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+        `;
+      });
+    }
+
+    html += `
+          <tr class="font-bold bg-blue-100">
+            <td colspan="3" style="font-size: 13px;">VALOR LÍQUIDO DE MEDIÇÃO (TOTAL)</td>
+            <td class="text-center">-</td>
+            <td class="text-right text-green" style="font-size: 13px;">R$ ${financialGrandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+          <tr><td colspan="5"></td></tr>
+          
+          <tr><td colspan="5" class="section-title">ANEXO - APONTAMENTO INDIVIDUAL DOS PROFISSIONAIS</td></tr>
+          <tr>
+            <th>Nome do Profissional</th>
+            <th>Função / Categoria</th>
+            <th>Horas Normais</th>
+            <th>Horas Extras</th>
+            <th>Adicional Noturno</th>
+          </tr>
+    `;
+
+    Object.values(hoursByWorker).forEach(worker => {
+      html += `
+        <tr>
+          <td class="font-bold">${worker.name}</td>
+          <td>${worker.role}</td>
+          <td class="text-center">${worker.normal}h</td>
+          <td class="text-center">${worker.extra}h</td>
+          <td class="text-center">${worker.night}h</td>
+        </tr>
+      `;
+    });
+
+    html += `
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Medicao_Mensal_${targetCompany?.name.replace(/\s+/g, '_') || 'Empresa'}_${startDate}_a_${endDate}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRealExport = (format: 'PDF' | 'EXCEL') => {
+    if (approvedRdos.length === 0) {
+      alert('Sem dados consolidados para exportar no período. Verifique filiações e aprovações.');
+      return;
+    }
+    if (format === 'EXCEL') {
+      handleExportExcel();
+    } else {
+      window.print();
+    }
   };
 
   return (
@@ -247,14 +398,14 @@ export function MeasurementView({
         {/* Excel / PDF trigger tags */}
         <div className="flex gap-2.5">
           <button
-            onClick={() => handleSimulatedExport('EXCEL')}
+            onClick={() => handleRealExport('EXCEL')}
             className="flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Exportar Planilha</span>
           </button>
           <button
-            onClick={() => handleSimulatedExport('PDF')}
+            onClick={() => handleRealExport('PDF')}
             className="flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4 text-red-600" />

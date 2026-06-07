@@ -37,6 +37,9 @@ export interface Contract {
   rateRule: string; // e.g., "R$ 85,00/hora", "Fixo"
   costCenter: string;
   siteLocation: string;
+  rateNormal?: number;
+  rateExtra?: number;
+  rateNight?: number;
 }
 
 export interface WorkerEntry {

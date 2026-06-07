@@ -733,7 +733,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans antialiased text-gray-800" id="app-root-frame">
       
       {/* 1. SUPERIOR TOP BANNER (CLEAN & PROFESSIONAL) */}
-      <div className="bg-slate-900 border-b border-slate-950 px-4 py-2 flex justify-between items-center gap-3 shrink-0">
+      <div className="bg-slate-900 border-b border-slate-950 px-4 py-2 flex justify-between items-center gap-3 shrink-0 print:hidden">
         <div className="flex items-center gap-2.5">
           {/* Hamburger button to trigger sidebar drawer on mobile/tablet */}
           <button
@@ -777,7 +777,7 @@ export default function App() {
         )}
 
         {/* SIDE BAR / LEFT NAVIGATOR */}
-        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 border-r border-slate-950 flex flex-col transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 border-r border-slate-950 flex flex-col transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 print:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           {/* Logo brand */}
           <div className="p-6 border-b border-slate-950 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -897,7 +897,7 @@ export default function App() {
         </aside>
 
         {/* WORKSPACE CENTRAL WORKPAD */}
-        <main className="grow p-6 lg:p-8 overflow-y-auto max-w-full">
+        <main className="grow p-6 lg:p-8 overflow-y-auto max-w-full print:p-0">
           
           {/* Overlay Detail View */}
           {viewingRdoId ? (() => {
