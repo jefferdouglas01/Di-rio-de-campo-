@@ -29,6 +29,7 @@ interface RegistrationViewProps {
   onAddCompany: (comp: Company) => void;
   onAddContract: (cnt: Contract) => void;
   onAddUser: (usr: User) => void;
+  onUpdateUser: (usr: User) => void;
   onDeleteCompany: (id: string) => void;
   onDeleteContract: (id: string) => void;
   onDeleteUser: (id: string) => void;
@@ -42,6 +43,7 @@ export function RegistrationView({
   onAddCompany,
   onAddContract,
   onAddUser,
+  onUpdateUser,
   onDeleteCompany,
   onDeleteContract,
   onDeleteUser
@@ -72,6 +74,42 @@ export function RegistrationView({
   const [usrPassword, setUsrPassword] = useState<string>('123456');
   const [usrRole, setUsrRole] = useState<UserRole>('contractor');
   const [usrCompId, setUsrCompId] = useState<string>('');
+
+  // Editing User States for administrators to approve/assign roles/companies
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editingUserName, setEditingUserName] = useState<string>('');
+  const [editingUserRole, setEditingUserRole] = useState<UserRole>('pending');
+  const [editingUserCompanyId, setEditingUserCompanyId] = useState<string | undefined>('');
+  const [editingUserPassword, setEditingUserPassword] = useState<string>('');
+
+  const handleStartUserEdit = (usr: User) => {
+    setEditingUserId(usr.id);
+    setEditingUserName(usr.name);
+    setEditingUserRole(usr.role);
+    setEditingUserCompanyId(usr.companyId || '');
+    setEditingUserPassword(usr.password || '123456');
+  };
+
+  const handleSaveUserEdit = () => {
+    if (!editingUserId || !editingUserName.trim()) {
+      alert('Por favor, informe o nome do colaborador corporativo.');
+      return;
+    }
+    const originalUser = usersList.find(u => u.id === editingUserId);
+    if (!originalUser) return;
+
+    const updatedUser: User = {
+      ...originalUser,
+      name: editingUserName.trim(),
+      role: editingUserRole,
+      companyId: editingUserRole === 'contractor' ? (editingUserCompanyId || undefined) : undefined,
+      password: editingUserPassword || '123456'
+    };
+
+    onUpdateUser(updatedUser);
+    setEditingUserId(null);
+    alert('Cadastro do colaborador e permissões de acesso atualizados com sucesso!');
+  };
 
   // Creation dispatches
   const handleCreateCompany = (e: React.FormEvent) => {
@@ -601,50 +639,155 @@ export function RegistrationView({
                       <th className="p-4">E-mail Operacional</th>
                       <th className="p-4">Perfil / Atribuição</th>
                       <th className="p-4">Empresa Vinculada</th>
-                      {isAdmin && <th className="p-4 text-right">Deletar</th>}
+                      {isAdmin && <th className="p-4 text-right">Gerenciar / Ações</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs font-semibold">
                     {usersList.map((usr) => {
                       const linkedComp = companies.find(c => c.id === usr.companyId);
+                      const isSelf = usr.id === currentUser.id;
+                      const isPending = usr.role === 'pending';
+
+                      if (editingUserId === usr.id) {
+                        return (
+                          <tr key={usr.id} className="bg-blue-50/60 hover:bg-blue-50">
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={editingUserName}
+                                onChange={(e) => setEditingUserName(e.target.value)}
+                                className="w-full bg-white border border-gray-300 rounded-lg px-2 text-xs font-bold text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-hidden py-1"
+                                placeholder="Nome do usuário"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className="font-mono text-gray-500 block text-xs">{usr.email}</span>
+                              <div className="mt-1 flex items-center gap-1">
+                                <span className="text-[9px] text-gray-450 uppercase tracking-wider font-sans shrink-0">Senha:</span>
+                                <input
+                                  type="text"
+                                  value={editingUserPassword}
+                                  onChange={(e) => setEditingUserPassword(e.target.value)}
+                                  className="bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[10px] text-gray-700 w-24 font-mono outline-hidden"
+                                  placeholder="Nova Senha"
+                                />
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <select
+                                value={editingUserRole}
+                                onChange={(e) => setEditingUserRole(e.target.value as UserRole)}
+                                className="bg-white border border-gray-300 rounded-lg px-1 py-1 text-xs font-bold text-gray-800 focus:border-blue-550 focus:ring-1 focus:ring-blue-500/20"
+                              >
+                                <option value="pending">Pendente (Inativo)</option>
+                                <option value="admin">Administrador Geral</option>
+                                <option value="manager">Fiscal da Contratante</option>
+                                <option value="contractor">Empresa Contratada</option>
+                              </select>
+                            </td>
+                            <td className="p-3">
+                              {editingUserRole === 'contractor' ? (
+                                <select
+                                  value={editingUserCompanyId || ''}
+                                  onChange={(e) => setEditingUserCompanyId(e.target.value)}
+                                  className="bg-white border border-gray-300 rounded-lg px-1 py-1 text-xs font-bold text-gray-800 max-w-[150px]"
+                                >
+                                  <option value="">-- Escolha a Empresa --</option>
+                                  {companies.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-gray-400 font-normal text-[11px]">- Exclusivo para Contratadas</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                onClick={handleSaveUserEdit}
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 hover:shadow-md hover:shadow-emerald-500/10 text-white rounded-md text-[10px] font-bold cursor-pointer transition-all"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingUserId(null)}
+                                className="px-2.5 py-1.5 bg-gray-250 hover:bg-gray-300 text-gray-700 rounded-md text-[10px] font-bold cursor-pointer transition-all border border-gray-200"
+                              >
+                                Cancelar
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      }
+
                       return (
-                        <tr key={usr.id} className="hover:bg-slate-50/50">
+                        <tr key={usr.id} className={`hover:bg-slate-50/50 transition-colors ${isPending ? 'bg-amber-50/20 hover:bg-amber-50/40' : ''}`}>
                           <td className="p-4">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs rounded-full">
+                              <div className={`w-7 h-7 flex items-center justify-center font-bold text-xs rounded-full ${
+                                isPending ? 'bg-amber-100 text-amber-850 ring-2 ring-amber-200 animate-pulse' : 'bg-slate-100 text-slate-805'
+                              }`}>
                                 {usr.name[0]}
                               </div>
-                              <span className="font-bold text-gray-800">{usr.name}</span>
+                              <div>
+                                <span className="font-bold text-gray-800 block text-xs">{usr.name}</span>
+                                {isPending && (
+                                  <span className="text-[9px] font-bold text-amber-600 block mt-0.5 uppercase tracking-wide">
+                                    Aguardando Liberação
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="p-4 font-mono text-gray-500">{usr.email}</td>
                           <td className="p-4">
                             <span className={`inline-block px-2.5 py-0.5 rounded-sm font-bold text-[10px] uppercase ${
                               usr.role === 'admin' 
-                                ? 'bg-rose-150 text-rose-800 border border-slate-200' 
+                                ? 'bg-rose-100 text-rose-800 border border-slate-200' 
                                 : usr.role === 'manager' 
-                                ? 'bg-amber-100 text-amber-800' 
-                                : 'bg-blue-100 text-blue-800'
+                                ? 'bg-indigo-105 text-indigo-800 bg-indigo-50/70' 
+                                : usr.role === 'contractor'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-amber-100 text-amber-800 border border-amber-300'
                             }`}>
                               {usr.role === 'admin' && 'Administrador'}
                               {usr.role === 'manager' && 'Gerenciador/Fiscal'}
                               {usr.role === 'contractor' && 'Empresa Contratada'}
+                              {usr.role === 'pending' && 'Pendente'}
                             </span>
                           </td>
                           <td className="p-4 text-gray-500">
-                            {usr.role === 'contractor' ? (linkedComp?.name || 'Nenhuma Vinculada') : '- Gerenciadora Contratante'}
+                            {usr.role === 'contractor' ? (
+                              <span className="font-bold text-blue-700">{linkedComp?.name || 'Não vinculada'}</span>
+                            ) : usr.role === 'pending' ? (
+                              <span className="text-amber-500 italic text-[11px] font-sans">Sem permissões atribuídas</span>
+                            ) : (
+                              <span className="text-gray-405 font-normal">- Gerenciadora Contratante</span>
+                            )}
                           </td>
                           {isAdmin && (
-                            <td className="p-4 text-right">
-                              {usr.id !== currentUser.id ? (
+                            <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                onClick={() => handleStartUserEdit(usr)}
+                                className={`p-1 px-2.5 rounded-md text-[10px] font-bold transition-all inline-flex items-center gap-1 cursor-pointer ${
+                                  isPending 
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-500/10' 
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                }`}
+                                title="Editar configurações de login"
+                              >
+                                {isPending ? '🔒 Liberar Acesso' : 'Editar'}
+                              </button>
+                              
+                              {!isSelf ? (
                                 <button
                                   onClick={() => onDeleteUser(usr.id)}
-                                  className="p-1 px-2 hover:bg-red-50 text-gray-400 hover:text-red-700 rounded transition-colors"
+                                  className="p-1 px-2 hover:bg-red-50 text-gray-400 hover:text-red-700 rounded transition-colors inline-block"
+                                  title="Remover Usuário"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               ) : (
-                                <span className="text-[10px] text-gray-400 px-2">Logado atualmente</span>
+                                <span className="text-[10px] text-gray-400 px-1 border border-slate-100 bg-slate-50 rounded">Logado</span>
                               )}
                             </td>
                           )}

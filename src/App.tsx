@@ -36,88 +36,68 @@ import {
   RefreshCw,
   LogOut,
   HardHat,
-  Database
+  Database,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function App() {
   
-  // Primary Databases state
-  const [rdos, setRdos] = useState<RdoRecord[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [usersList, setUsersList] = useState<User[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  // Primary Databases state with synchronous state initializers
+  const [rdos, setRdos] = useState<RdoRecord[]>(() => {
+    const local = localStorage.getItem('rdo_db_rdos');
+    if (local) return JSON.parse(local);
+    localStorage.setItem('rdo_db_rdos', JSON.stringify(INITIAL_RDOS));
+    return INITIAL_RDOS;
+  });
+  
+  const [companies, setCompanies] = useState<Company[]>(() => {
+    const local = localStorage.getItem('rdo_db_companies');
+    if (local) return JSON.parse(local);
+    localStorage.setItem('rdo_db_companies', JSON.stringify(INITIAL_COMPANIES));
+    return INITIAL_COMPANIES;
+  });
+  
+  const [contracts, setContracts] = useState<Contract[]>(() => {
+    const local = localStorage.getItem('rdo_db_contracts');
+    if (local) return JSON.parse(local);
+    localStorage.setItem('rdo_db_contracts', JSON.stringify(INITIAL_CONTRACTS));
+    return INITIAL_CONTRACTS;
+  });
+  
+  const [usersList, setUsersList] = useState<User[]>(() => {
+    const local = localStorage.getItem('rdo_db_users');
+    if (local) return JSON.parse(local);
+    localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
+    return INITIAL_USERS;
+  });
+  
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    const local = localStorage.getItem('rdo_db_audits');
+    if (local) return JSON.parse(local);
+    localStorage.setItem('rdo_db_audits', JSON.stringify(INITIAL_AUDIT_LOGS));
+    return INITIAL_AUDIT_LOGS;
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('rdo_is_logged_in') === 'true';
+  });
+
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const localUsers = localStorage.getItem('rdo_db_users');
+    const uList = localUsers ? (JSON.parse(localUsers) as User[]) : INITIAL_USERS;
+    const email = localStorage.getItem('rdo_active_user_email');
+    const isLg = localStorage.getItem('rdo_is_logged_in') === 'true';
+    if (isLg && email) {
+      return uList.find(u => u.email === email) || null;
+    }
+    return null;
+  });
 
   // Navigation states
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [viewingRdoId, setViewingRdoId] = useState<string | null>(null);
   const [editingRdoId, setEditingRdoId] = useState<string | null>(null);
   const [isCreatingNewRdo, setIsCreatingNewRdo] = useState<boolean>(false);
-
-  // 1. Initial State bootstrapping from local storage or Seeds
-  useEffect(() => {
-    // Rdos
-    const localRdos = localStorage.getItem('rdo_db_rdos');
-    if (localRdos) {
-      setRdos(JSON.parse(localRdos));
-    } else {
-      setRdos(INITIAL_RDOS);
-      localStorage.setItem('rdo_db_rdos', JSON.stringify(INITIAL_RDOS));
-    }
-
-    // Companies
-    const localCompanies = localStorage.getItem('rdo_db_companies');
-    if (localCompanies) {
-      setCompanies(JSON.parse(localCompanies));
-    } else {
-      setCompanies(INITIAL_COMPANIES);
-      localStorage.setItem('rdo_db_companies', JSON.stringify(INITIAL_COMPANIES));
-    }
-
-    // Contracts
-    const localContracts = localStorage.getItem('rdo_db_contracts');
-    if (localContracts) {
-      setContracts(JSON.parse(localContracts));
-    } else {
-      setContracts(INITIAL_CONTRACTS);
-      localStorage.setItem('rdo_db_contracts', JSON.stringify(INITIAL_CONTRACTS));
-    }
-
-    // Users
-    const localUsers = localStorage.getItem('rdo_db_users');
-    let dbUsers: User[] = [];
-    if (localUsers) {
-      dbUsers = JSON.parse(localUsers) as User[];
-      setUsersList(dbUsers);
-    } else {
-      dbUsers = INITIAL_USERS;
-      setUsersList(INITIAL_USERS);
-      localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
-    }
-
-    // Check Login session
-    const savedUserEmail = localStorage.getItem('rdo_active_user_email');
-    const wasLoggedIn = localStorage.getItem('rdo_is_logged_in') === 'true';
-    const found = dbUsers.find(u => u.email === savedUserEmail);
-    if (wasLoggedIn && found) {
-      setCurrentUser(found);
-      setIsLoggedIn(true);
-    } else {
-      setCurrentUser(null);
-      setIsLoggedIn(false);
-    }
-
-    // Audit logs
-    const localAudits = localStorage.getItem('rdo_db_audits');
-    if (localAudits) {
-      setAuditLogs(JSON.parse(localAudits));
-    } else {
-      setAuditLogs(INITIAL_AUDIT_LOGS);
-      localStorage.setItem('rdo_db_audits', JSON.stringify(INITIAL_AUDIT_LOGS));
-    }
-  }, []);
 
   // Utility to reload default seeds to resolve testing states
   const handleResetSystem = () => {
@@ -357,6 +337,15 @@ export default function App() {
     localStorage.setItem('rdo_db_users', JSON.stringify(updated));
   };
 
+  const handleUpdateUser = (updatedUser: User) => {
+    const updated = usersList.map(u => u.id === updatedUser.id ? updatedUser : u);
+    setUsersList(updated);
+    localStorage.setItem('rdo_db_users', JSON.stringify(updated));
+    if (currentUser && currentUser.id === updatedUser.id) {
+      setCurrentUser(updatedUser);
+    }
+  };
+
   const handleDeleteUser = (id: string) => {
     const filtered = usersList.filter(u => u.id !== id);
     setUsersList(filtered);
@@ -429,17 +418,61 @@ export default function App() {
           localStorage.setItem('rdo_active_user_email', user.email);
           localStorage.setItem('rdo_is_logged_in', 'true');
         }}
-        onRegisterUser={(user, newCompany) => {
-          if (newCompany) {
-            const updatedCompanies = [...companies, newCompany];
-            setCompanies(updatedCompanies);
-            localStorage.setItem('rdo_db_companies', JSON.stringify(updatedCompanies));
-          }
+        onRegisterUser={(user) => {
           const updatedUsers = [...usersList, user];
           setUsersList(updatedUsers);
           localStorage.setItem('rdo_db_users', JSON.stringify(updatedUsers));
         }}
       />
+    );
+  }
+
+  // Intercept pending user roles to show waiting/approval instructions page
+  if (currentUser.role === 'pending') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 sm:p-6 text-gray-100 font-sans">
+        <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-amber-500 to-yellow-500" />
+          
+          <div className="mx-auto w-16 h-16 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center ring-1 ring-amber-500/20 mb-4 animate-pulse">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2 mb-6">
+            <h2 className="text-xl font-bold text-white">Solicitação Pendente</h2>
+            <p className="text-xs text-slate-350 leading-relaxed">
+              Olá, <strong className="text-white">{currentUser.name}</strong>! Seu login corporativo foi criado com sucesso.
+            </p>
+            <p className="text-xs text-slate-400 leading-relaxed font-sans">
+              Por razões de segurança e integridade operacional, novos acessos requerem a atribuição de permissões pelo <strong>Administrador Geral</strong> do sistema.
+            </p>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Sua conta com o e-mail <span className="font-mono bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded text-slate-200 select-all">{currentUser.email}</span> está registrada.
+            </p>
+          </div>
+
+          <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-850 text-left text-xs space-y-2 mb-6 font-sans">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Passos para Aprovação:</span>
+            <p className="text-[11px] text-slate-350 leading-relaxed">
+              1. Entre em contato com seu gestor ou <strong>Administrador do Sistema</strong>.
+            </p>
+            <p className="text-[11px] text-slate-350 leading-relaxed">
+              2. O administrador acessará o menu de <strong>Cadastros de Usuários</strong>, localizará sua conta pendente, ativará seu perfil (Administrador, Fiscal ou Contratada) e vinculará sua empresa correspondente.
+            </p>
+            <p className="text-[11px] text-slate-350 leading-relaxed font-semibold text-amber-400">
+              3. Com a permissão concedida, basta recarregar a ferramenta ou fazer login novamente.
+            </p>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full bg-slate-800 hover:bg-slate-705 border border-slate-700/80 hover:border-slate-600 text-slate-200 hover:text-white rounded-xl py-2.5 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sair do Painel</span>
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -660,6 +693,7 @@ export default function App() {
                   onAddCompany={handleAddCompany}
                   onAddContract={handleAddContract}
                   onAddUser={handleAddUser}
+                  onUpdateUser={handleUpdateUser}
                   onDeleteCompany={handleDeleteCompany}
                   onDeleteContract={handleDeleteContract}
                   onDeleteUser={handleDeleteUser}
