@@ -636,66 +636,53 @@ export function MeasurementView({
         {/* Right Side: Financial Preview, Close Process, and Adjustments */}
         <div className="lg:col-span-4 space-y-6">
           
-          {/* PREVIA FINANCEIRA CARD */}
+          {/* FECHAMENTO DE MEDIÇÃO CARD (APENAS HORAS FÍSICAS, SEM VALORES EM R$) */}
           <div className="bg-slate-900 text-white rounded-xl p-6 shadow-md space-y-5">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-emerald-400 animate-bounce" />
-              <span>Demonstrativo Líquido de Medição</span>
+              <ClipboardCheck className="w-4 h-4 text-blue-400" />
+              <span>Fechamento do Período de Medição</span>
             </h3>
 
-            {/* Sum stats list */}
+            {/* Sum stats list - Physical Hours only */}
             <div className="space-y-3.5 border-b border-white/10 pb-4 text-xs">
               
               {/* Total hours normal */}
               <div className="flex justify-between items-center text-slate-300">
-                <span>Horas Normais ({normalHoursSum}h × R$ {rateNormal.toFixed(2)})</span>
-                <span className="font-mono font-bold text-white">R$ {financialNormal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span>Total de Horas Normais</span>
+                <span className="font-mono font-bold text-white">{normalHoursSum}h</span>
               </div>
 
               {/* Extras faturados */}
               <div className="flex justify-between items-center text-slate-300">
-                <span>Horas Extras ({extraHoursSum}h × R$ {rateExtra.toFixed(2)})</span>
-                <span className="font-mono font-bold text-amber-400">R$ {financialExtra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span>Total de Horas Extras</span>
+                <span className="font-mono font-bold text-amber-400">{extraHoursSum}h</span>
               </div>
 
               {/* Night shifts */}
               <div className="flex justify-between items-center text-slate-300">
-                <span>Adic. Noturno ({nightHoursSum}h × R$ {rateNight.toFixed(2)})</span>
-                <span className="font-mono font-bold text-purple-400">R$ {financialNight.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span>Total de Adicional Noturno</span>
+                <span className="font-mono font-bold text-purple-400">{nightHoursSum}h</span>
               </div>
 
-              {/* Subtotal */}
+              {/* Accumulation totals */}
               <div className="flex justify-between items-center text-slate-400 border-t border-white/5 pt-3.5">
-                <span>Subtotal de Faturamento</span>
-                <span className="font-mono text-sm font-bold text-white">R$ {financialSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span>Acumulado de Horas do Período</span>
+                <span className="font-mono text-sm font-bold text-white">{totalClosedHours} H/H</span>
               </div>
 
-              {/* Adjustments sum flag */}
-              {adjustments.length > 0 && (
-                <div className="flex justify-between items-center text-slate-300 text-[11px]">
-                  <span>Ajustes / Glosas Administrativas</span>
-                  <span className={`font-mono font-bold ${adjustmentTotal < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {adjustmentTotal < 0 ? '-' : '+'} R$ {Math.abs(adjustmentTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-
             </div>
 
-            {/* Net values total */}
-            <div>
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider block">Total Líquido Estimado de Pagamento</span>
-              <span className="text-3xl font-sans font-black text-emerald-400 block mt-1">
-                R$ {financialGrandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
+            {/* Closure action description */}
+            <p className="text-[10px] text-slate-400 leading-normal">
+              Ao efetuar o fechamento periódico, todos os diários correspondentes do período serão bloqueados para novas edições e marcados como medidos.
+            </p>
 
             {/* Closure button */}
             {(currentUser.role === 'manager' || currentUser.role === 'admin') ? (
               <button
                 type="button"
                 onClick={handlePerformClosePeriod}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="w-full bg-blue-650 hover:bg-blue-700 text-white rounded-lg py-3 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 <ClipboardCheck className="w-5 h-5" />
                 <span>Carimbar Fechamento Periódico</span>
@@ -703,7 +690,7 @@ export function MeasurementView({
             ) : (
               <div className="text-[11px] bg-white/5 border border-white/10 p-3 rounded-lg text-slate-400 flex gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-                <span>Apenas perfis Administrativos ou Fiscais podem encerrar, glosar e medir ciclos oficialmente.</span>
+                <span>Apenas perfis Administrativos ou Fiscais podem encerrar e medir ciclos oficialmente.</span>
               </div>
             )}
           </div>
