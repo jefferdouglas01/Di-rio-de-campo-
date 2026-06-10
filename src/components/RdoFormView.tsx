@@ -152,25 +152,62 @@ export function RdoFormView({
   };
 
   // Add standard teams utility (extremely nice for fast customer testing!)
-  const handleLoadStandardTeam = () => {
-    const isAlfa = companyId === 'comp-alfa';
-    let defaultTeam: WorkerEntry[] = [];
-    
-    if (isAlfa) {
-      defaultTeam = [
-        { id: `w-${Date.now()}-1`, name: 'Paulo Silva', role: 'Encarregado de Tubulação', normalHours: 8, extraHours: 0, nightHours: 0 },
-        { id: `w-${Date.now()}-2`, name: 'Lucas Mendes', role: 'Soldador Especialista TIG', normalHours: 8, extraHours: 0, nightHours: 0 },
-        { id: `w-${Date.now()}-3`, name: 'Julio Amorim', role: 'Caldeireiro Industrial', normalHours: 8, extraHours: 0, nightHours: 0 },
-        { id: `w-${Date.now()}-4`, name: 'Wellington Gomes', role: 'Ajudante Geral', normalHours: 8, extraHours: 0, nightHours: 0 }
-      ];
-    } else {
-      defaultTeam = [
-        { id: `w-${Date.now()}-1`, name: 'Rodrigo Almeida', role: 'Eletricista de Força', normalHours: 8, extraHours: 0, nightHours: 0 },
-        { id: `w-${Date.now()}-2`, name: 'Renato Sales', role: 'Eletricista Montador', normalHours: 8, extraHours: 0, nightHours: 0 },
-        { id: `w-${Date.now()}-3`, name: 'Ana Paula Santos', role: 'Técnica de Comissionamento', normalHours: 8, extraHours: 0, nightHours: 0 }
-      ];
+  const handleSaveAsStandardTeam = () => {
+    if (workers.length === 0) {
+      alert('Adicione pelo menos um integrante para poder salvar como equipe padrão!');
+      return;
     }
-    setWorkers([...workers, ...defaultTeam]);
+    const validWorkers = workers.filter(w => w.name.trim() !== '' || w.role.trim() !== '');
+    if (validWorkers.length === 0) {
+      alert('Por favor, digite o nome e cargo dos integrantes antes de salvar!');
+      return;
+    }
+    const key = `rdo_default_team_${currentUser?.id || companyId || 'guest'}`;
+    localStorage.setItem(key, JSON.stringify(validWorkers));
+    alert('Equipe salva como padrão com sucesso! Agora você poderá carregá-la em novos lançamentos de RDO.');
+  };
+
+  const handleLoadStandardTeam = () => {
+    const key = `rdo_default_team_${currentUser?.id || companyId || 'guest'}`;
+    const stored = localStorage.getItem(key);
+    
+    let teamToLoad: WorkerEntry[] = [];
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as WorkerEntry[];
+        teamToLoad = parsed.map((w, idx) => ({
+          ...w,
+          id: `w-${Date.now()}-${idx}`
+        }));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    
+    if (teamToLoad.length === 0) {
+      const isAlfa = companyId === 'comp-alfa';
+      if (isAlfa) {
+        teamToLoad = [
+          { id: `w-${Date.now()}-1`, name: 'Paulo Silva', role: 'Encarregado de Tubulação', normalHours: 8, extraHours: 0, nightHours: 0 },
+          { id: `w-${Date.now()}-2`, name: 'Lucas Mendes', role: 'Soldador Especialista TIG', normalHours: 8, extraHours: 0, nightHours: 0 },
+          { id: `w-${Date.now()}-3`, name: 'Julio Amorim', role: 'Caldeireiro Industrial', normalHours: 8, extraHours: 0, nightHours: 0 },
+          { id: `w-${Date.now()}-4`, name: 'Wellington Gomes', role: 'Ajudante Geral', normalHours: 8, extraHours: 0, nightHours: 0 }
+        ];
+      } else {
+        teamToLoad = [
+          { id: `w-${Date.now()}-1`, name: 'Rodrigo Almeida', role: 'Eletricista de Força', normalHours: 8, extraHours: 0, nightHours: 0 },
+          { id: `w-${Date.now()}-2`, name: 'Renato Sales', role: 'Eletricista Montador', normalHours: 8, extraHours: 0, nightHours: 0 },
+          { id: `w-${Date.now()}-3`, name: 'Ana Paula Santos', role: 'Técnica de Comissionamento', normalHours: 8, extraHours: 0, nightHours: 0 }
+        ];
+      }
+      alert('Carregando equipe modelo do sistema. Dica: você pode preencher os integrantes e clicar em "Salvar como Padrão" para gravar sua própria equipe de trabalho!');
+    }
+
+    if (workers.length === 1 && workers[0].name.trim() === '' && workers[0].role.trim() === '') {
+      setWorkers(teamToLoad);
+    } else {
+      setWorkers([...workers, ...teamToLoad]);
+    }
   };
 
   // Team Member Crud operations
@@ -549,22 +586,30 @@ export function RdoFormView({
                 <span>Efetivo de Campo (Profissionais & Horas Trabalhadas) *</span>
               </h3>
               
-              <div className="flex items-center gap-2">
-                {/* Fast standard team fill */}
-                <button
-                  type="button"
-                  onClick={handleLoadStandardTeam}
-                  className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer"
-                >
-                  + Carregar Equipe Padrão
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleAddWorker}
-                  className="flex items-center gap-1 text-[10px] font-bold text-white bg-slate-900 hover:bg-slate-800 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer animate-pulse"
+                  className="flex items-center gap-1 text-[10px] font-bold text-white bg-slate-900 hover:bg-slate-800 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer shadow-xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Adicionar Integrante</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAsStandardTeam}
+                  className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer shadow-xs"
+                  title="Salvar a lista de integrantes atual como seu modelo padrão"
+                >
+                  <Save className="w-3 h-3" />
+                  <span>Salvar como Padrão</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadStandardTeam}
+                  className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer shadow-xs"
+                >
+                  <span>+ Carregar Equipe Padrão</span>
                 </button>
               </div>
             </div>
@@ -803,7 +848,7 @@ export function RdoFormView({
 
             <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
               <label htmlFor="hse-switch" className="text-xs text-gray-700 font-semibold cursor-pointer">
-                Houve Incidente ou Acidente hoje?
+                Houve Incidente, Acidente ou Pitstop hoje?
               </label>
               <input
                 id="hse-switch"

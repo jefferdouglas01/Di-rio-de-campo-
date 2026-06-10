@@ -19,6 +19,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, AuditLog } from '../types';
+import { getRdoSequentialCode } from '../utils';
 
 interface ReportsViewProps {
   rdos: RdoRecord[];
@@ -232,7 +233,7 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
                     const compName = companies.find(c => c.id === r.companyId)?.name || 'Empresa';
                     return (
                       <option key={r.id} value={r.id}>
-                        {new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR')} - {compName} ({r.workers.length} colab.)
+                        {getRdoSequentialCode(r, rdos)} - {new Date(r.date + 'T00:00:00').toLocaleDateString('pt-BR')} - {compName} ({r.workers.length} colab.)
                       </option>
                     );
                   })}
@@ -250,7 +251,7 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
                   <div className="flex flex-col md:flex-row justify-between border-b pb-4 border-gray-150">
                     <div className="space-y-1">
                       <h4 className="text-base font-bold text-gray-900 font-sans">REGISTRO DIÁRIO DE ATIVIDADES</h4>
-                      <p className="text-[11px] font-mono text-gray-400">RDO ID ref: {activeRdoSheet.id}</p>
+                      <p className="text-[11px] font-mono text-gray-400">RDO ID ref: {getRdoSequentialCode(activeRdoSheet, rdos)}</p>
                     </div>
                     <div className="text-right text-xs mt-3 md:mt-0 font-mono text-gray-600">
                       <span>Período Ativo: {new Date(activeRdoSheet.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
@@ -548,7 +549,7 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
 
                       <div className="mt-3 text-[10px] text-gray-400 flex justify-between items-center">
                         <span>Reportado por: {r.responsibleName}</span>
-                        <span className="font-mono">RDO ID: {r.id}</span>
+                        <span className="font-mono">RDO ID: {getRdoSequentialCode(r, rdos)}</span>
                       </div>
                     </div>
                   );

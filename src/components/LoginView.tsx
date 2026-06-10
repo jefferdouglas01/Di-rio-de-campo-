@@ -12,10 +12,12 @@ interface LoginViewProps {
   companies: Company[];
   onLoginSuccess: (user: User) => void;
   onRegisterUser: (user: User) => void;
+  onResetPassword?: (email: string, password: string) => Promise<boolean>;
 }
 
-export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginViewProps) {
+export function LoginView({ usersList, onLoginSuccess, onRegisterUser, onResetPassword }: LoginViewProps) {
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   
   // Login states
   const [email, setEmail] = useState('');
@@ -27,6 +29,58 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
+
+  // Password reset states
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setResetSuccess(null);
+
+    const emailLower = resetEmail.trim().toLowerCase();
+    if (!emailLower || !resetNewPassword || !resetConfirmPassword) {
+      setError('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    if (resetNewPassword.length < 4) {
+      setError('A nova senha deve possuir pelo menos 4 caracteres.');
+      return;
+    }
+
+    if (resetNewPassword !== resetConfirmPassword) {
+      setError('A confirmação de senha não coincide com a nova senha.');
+      return;
+    }
+
+    const matchedUser = usersList.find(u => u.email.trim().toLowerCase() === emailLower);
+    if (!matchedUser) {
+      setError('Este endereço de e-mail não foi encontrado no sistema.');
+      return;
+    }
+
+    if (onResetPassword) {
+      const success = await onResetPassword(emailLower, resetNewPassword);
+      if (success) {
+        setResetSuccess('Sua senha foi redefinida com sucesso! Prossiga para realizar o login.');
+        setResetEmail('');
+        setResetNewPassword('');
+        setResetConfirmPassword('');
+      } else {
+        setError('Ocorreu um erro ao atualizar a senha no banco de dados. Tente novamente.');
+      }
+    } else {
+      matchedUser.password = resetNewPassword;
+      setResetSuccess('Sua senha foi redefinida localmente com sucesso! Prossiga para realizar o login.');
+      setResetEmail('');
+      setResetNewPassword('');
+      setResetConfirmPassword('');
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +168,7 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
             <HardHat className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-sans font-extrabold tracking-tight text-white block font-sans">
-            RDO & Medições
+            RDO APP
           </h1>
           <p className="text-xs text-slate-400">
             Relatório Diário de Obra & Operações Integrado
@@ -128,11 +182,114 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
           </div>
         )}
 
-        {!isRegistering ? (
+        {isResettingPassword ? (
+          // ================= FORGOT PASSWORD SUB-FORM =================
+          <form onSubmit={handleResetPassword} className="space-y-4 animate-fadeIn">
+            <div className="flex items-center gap-2 pb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResettingPassword(false);
+                  setError(null);
+                  setResetSuccess(null);
+                }}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-900 rounded-lg transition-all cursor-pointer"
+                title="Voltar ao Login"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Redefinir Senha de Acesso</span>
+            </div>
+
+            {resetSuccess && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-xs text-emerald-400 flex gap-2 items-start">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                <span>{resetSuccess}</span>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Seu E-mail Cadastrado *</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="Ex: seu-email@empresa.com"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 font-semibold text-xs text-white outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nova Senha de Acesso *</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                <input
+                  type="password"
+                  required
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  placeholder="Mínimo 4 caracteres"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 font-semibold text-xs text-white outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Confirmar Nova Senha *</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                <input
+                  type="password"
+                  required
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  placeholder="Repita a nova senha"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 font-semibold text-xs text-white outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl py-3 font-semibold text-xs shadow-lg shadow-blue-500/10 cursor-pointer transition-all duration-150 active:scale-[0.98]"
+            >
+              Gravar Nova Senha
+            </button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResettingPassword(false);
+                  setError(null);
+                  setResetSuccess(null);
+                }}
+                className="text-xs text-slate-400 hover:text-white cursor-pointer hover:underline"
+              >
+                Voltar para a tela de Login
+              </button>
+            </div>
+          </form>
+        ) : !isRegistering ? (
           // ================= LOGIN SUB-FORM =================
           <form onSubmit={handleLogin} className="space-y-4">
+            {/* Informação destacada sobre a necessidade de e-mail válido */}
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-300 leading-relaxed flex items-start gap-2.5">
+              <Mail className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <span>
+                <strong>Atenção:</strong> O acesso ao sistema requer o preenchimento obrigatório do seu <strong>endereço de e-mail cadastrado</strong> e senha de acesso.
+              </span>
+            </div>
+
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">E-mail Corporativo</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <span>E-mail Cadastrado</span>
+                <span className="text-red-500 font-bold">*</span>
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <input
@@ -140,14 +297,30 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser }: LoginVi
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Ex: admin@rdo.com"
+                  placeholder="Ex: seu-email@empresa.com"
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 font-semibold text-xs text-white outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all font-sans"
                 />
               </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Senha de Acesso</label>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <span>Senha de Acesso</span>
+                  <span className="text-red-500 font-bold">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsResettingPassword(true);
+                    setError(null);
+                    setResetSuccess(null);
+                  }}
+                  className="text-[10px] font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                >
+                  Esqueceu a senha?
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
                 <input

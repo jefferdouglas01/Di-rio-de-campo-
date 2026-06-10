@@ -16,7 +16,8 @@ import {
   Calendar, 
   ArrowUpRight,
   FileCheck,
-  RotateCcw
+  RotateCcw,
+  ShieldAlert
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User } from '../types';
 
@@ -179,7 +180,7 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="dash-kpi-cards">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" id="dash-kpi-cards">
         {/* Total RDOs */}
         <div className="bg-white border border-gray-200/80 rounded-xl p-5 shadow-xs transition-transform hover:-translate-y-0.5">
           <div className="flex justify-between items-start">
@@ -248,6 +249,35 @@ export function DashboardView({ rdos, companies, contracts, onSelectTab, onViewR
             <span className="text-indigo-600 font-semibold">{(grandTotalNight).toLocaleString('pt-BR')} H Noturnas</span>
           </div>
         </div>
+
+        {/* Indicador de SSMA Apontados */}
+        {(() => {
+          const hseIncidentCount = rdos.filter(r => r.hasHseIncident).length;
+          return (
+            <div className="bg-white border border-gray-200/80 rounded-xl p-5 shadow-xs transition-transform hover:-translate-y-0.5">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Ocorrências SSMA</span>
+                  <span className={`text-3xl font-sans font-extrabold block mt-2 ${hseIncidentCount > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {hseIncidentCount}
+                  </span>
+                </div>
+                <span className={`p-2.5 rounded-lg ${hseIncidentCount > 0 ? 'bg-red-50 text-red-650' : 'bg-emerald-50 text-emerald-650'}`}>
+                  <ShieldAlert className="w-5 h-5" />
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                {hseIncidentCount > 0 ? (
+                  <span className="text-red-700 font-semibold animate-pulse">Atenção requerida</span>
+                ) : (
+                  <span className="text-emerald-700 font-semibold">Nenhum incidente</span>
+                )}
+                <span>registrado</span>
+              </div>
+            </div>
+          );
+        })()}
+
       </div>
 
       {/* Main Charts & Incoherences split view */}

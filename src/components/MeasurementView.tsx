@@ -206,7 +206,7 @@ export function MeasurementView({
       );
       if (!confirmForce) return;
     } else {
-      const confirmRegular = window.confirm(`Deseja carimbar o encerramento da medição de ${startDate} até ${endDate} com total líquido de R$ ${financialGrandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}?`);
+      const confirmRegular = window.confirm(`Deseja carimbar o encerramento da medição de ${startDate} até ${endDate}?`);
       if (!confirmRegular) return;
     }
 

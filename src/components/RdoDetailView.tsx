@@ -24,9 +24,11 @@ import {
   UserCheck
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, AuditLog, WorkerEntry, ChangeLogItem, RdoStatus } from '../types';
+import { getRdoSequentialCode } from '../utils';
 
 interface RdoDetailViewProps {
   rdo: RdoRecord;
+  rdos: RdoRecord[];
   companies: Company[];
   contracts: Contract[];
   currentUser: User;
@@ -49,6 +51,7 @@ interface RdoDetailViewProps {
 
 export function RdoDetailView({
   rdo,
+  rdos,
   companies,
   contracts,
   currentUser,
@@ -244,8 +247,8 @@ export function RdoDetailView({
           
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-5">
             <h3 className="font-sans font-semibold text-gray-900 text-base border-b border-gray-50 pb-3 flex items-center justify-between">
-              <span>Boletim Técnico Operacional</span>
-              <span className="text-xs font-mono text-gray-400">{rdo.id}</span>
+              <span>Relatório Diário de Obra</span>
+              <span className="text-xs font-mono text-gray-400">{getRdoSequentialCode(rdo, rdos)}</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
@@ -648,13 +651,13 @@ export function RdoDetailView({
                       <div className="space-y-1.5">
                         <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider block">Assinar como Contratada (Executante)</span>
                         {(currentUser.role === 'contractor' || currentUser.role === 'admin') ? (
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-2">
                             <input
                               type="text"
-                              placeholder="Seu nome completo"
+                              placeholder="Digite seu nome completo para assinar eletronicamente"
                               value={inpExecutant}
                               onChange={(e) => setInpExecutant(e.target.value)}
-                              className="bg-white border border-gray-200 text-xs px-2.5 py-1.5 rounded-lg w-full outline-hidden text-gray-800 font-semibold shadow-xs"
+                              className="bg-white border border-slate-300 text-sm px-4 py-3 rounded-lg w-full outline-hidden text-slate-900 font-bold focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 shadow-xs"
                             />
                             <button
                               onClick={() => {
@@ -664,7 +667,7 @@ export function RdoDetailView({
                                   executantDate: new Date().toLocaleDateString('pt-BR')
                                 });
                               }}
-                              className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors duration-150 shrink-0"
+                              className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-3 rounded-lg cursor-pointer transition-colors duration-150 shrink-0 shadow-sm"
                             >
                               Assinar
                             </button>
@@ -707,13 +710,13 @@ export function RdoDetailView({
                       <div className="space-y-1.5">
                         <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider block">Assinar como Contratante (Aprovador)</span>
                         {(currentUser.role === 'manager' || currentUser.role === 'admin') ? (
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-2">
                             <input
                               type="text"
-                              placeholder="Seu nome completo"
+                              placeholder="Digite seu nome completo para assinar eletronicamente"
                               value={inpApprover}
                               onChange={(e) => setInpApprover(e.target.value)}
-                              className="bg-white border border-gray-200 text-xs px-2.5 py-1.5 rounded-lg w-full outline-hidden text-gray-800 font-semibold shadow-xs"
+                              className="bg-white border border-slate-300 text-sm px-4 py-3 rounded-lg w-full outline-hidden text-slate-900 font-bold focus:border-green-600 focus:ring-2 focus:ring-green-100 shadow-xs"
                             />
                             <button
                               onClick={() => {
@@ -725,7 +728,7 @@ export function RdoDetailView({
                                   approvalDate: new Date().toLocaleDateString('pt-BR')
                                 });
                               }}
-                              className="bg-green-650 hover:bg-green-700 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors duration-150 shrink-0"
+                              className="bg-green-650 hover:bg-green-700 text-white font-bold text-xs px-5 py-3 rounded-lg cursor-pointer transition-colors duration-150 shrink-0 shadow-sm"
                             >
                               Assinar & Aprovar
                             </button>
@@ -753,7 +756,7 @@ export function RdoDetailView({
           
           {/* Workflows controllers */}
           {(currentUser.role === 'manager' || currentUser.role === 'admin') && rdo.status !== 'Medido' && (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4 print:hidden">
               <h3 className="font-sans font-semibold text-gray-900 text-base flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
                 <span>Avaliação e Auditoria Fiscal</span>
@@ -867,7 +870,7 @@ export function RdoDetailView({
           </div>
 
           {/* Audit Logs Trail & Changes history - dynamic */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4 print:hidden">
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
               <History className="w-4 h-4 text-gray-450" />
               <span>Histórico de Alterações / Auditoria</span>

@@ -398,7 +398,7 @@ export default function App() {
   const handleDeleteRdoRecord = (rdoId: string) => {
     triggerConfirm(
       'Excluir RDO definitivo?',
-      'Deseja excluir definitivamente este rascunho de RDO? Esta ação não possui retorno.',
+      'Deseja excluir definitivamente este boletim RDO? Esta ação não possui retorno.',
       async () => {
         try {
           await deleteDoc(doc(db, 'rdos', rdoId));
@@ -692,6 +692,19 @@ export default function App() {
             handleFirestoreError(e, OperationType.WRITE, `users/${user.id}`);
           }
         }}
+        onResetPassword={async (email, newPassword) => {
+          const matched = usersList.find(u => u.email.trim().toLowerCase() === email.trim().toLowerCase());
+          if (!matched) return false;
+          try {
+            const updated = { ...matched, password: newPassword };
+            const cleaned = cleanObject(updated);
+            await setDoc(doc(db, 'users', cleaned.id), cleaned);
+            return true;
+          } catch (e) {
+            console.error(e);
+            return false;
+          }
+        }}
       />
     );
   }
@@ -801,7 +814,7 @@ export default function App() {
                 R
               </div>
               <div>
-                <span className="font-extrabold text-white text-sm tracking-tight block">RDO & Medição</span>
+                <span className="font-extrabold text-white text-sm tracking-tight block">RDO APP</span>
                 <span className="text-[10px] text-slate-450 block font-mono mt-0.5">Versão MVP 1.0</span>
               </div>
             </div>
@@ -844,15 +857,17 @@ export default function App() {
               <span>Diários de Obra (RDO)</span>
             </button>
 
-            <button
-              onClick={() => { setActiveTab('medição'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
-                activeTab === 'medição' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <ClipboardCheck className="w-4 h-4 shrink-0" />
-              <span>Fechamento & Medição</span>
-            </button>
+            {currentUser?.role !== 'contractor' && (
+              <button
+                onClick={() => { setActiveTab('medição'); setViewingRdoId(null); handleCancelRdoForm(); setIsSidebarOpen(false); }}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer text-left ${
+                  activeTab === 'medição' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <ClipboardCheck className="w-4 h-4 shrink-0" />
+                <span>Fechamento & Medição</span>
+              </button>
+            )}
 
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block px-3 pt-5 pb-2">Configurações</span>
 
@@ -921,6 +936,7 @@ export default function App() {
             return rdoSpec ? (
               <RdoDetailView
                 rdo={rdoSpec}
+                rdos={rdos}
                 companies={filteredCompanies}
                 contracts={filteredContracts}
                 currentUser={currentUser!}
@@ -982,7 +998,7 @@ export default function App() {
                 />
               )}
 
-              {activeTab === 'medição' && (
+              {activeTab === 'medição' && currentUser?.role !== 'contractor' && (
                 <MeasurementView
                   rdos={filteredRdos}
                   companies={filteredCompanies}

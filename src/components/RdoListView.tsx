@@ -21,6 +21,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, RdoStatus } from '../types';
+import { getRdoSequentialCode } from '../utils';
 
 interface RdoListViewProps {
   rdos: RdoRecord[];
@@ -144,12 +145,12 @@ export function RdoListView({
           <p className="text-xs text-gray-500 mt-1">Lançados e processados para verificação e fechamento periódico.</p>
         </div>
         
-        {/* Enable "Novo RDO" button. Fiscais should view, Contractors or admin register */}
-        {(currentUser.role === 'contractor' || currentUser.role === 'admin') && (
+        {/* Enable "Novo RDO" button. Fiscais, Contractors or admin register */}
+        {(currentUser.role === 'contractor' || currentUser.role === 'admin' || currentUser.role === 'manager') && (
           <button
             onClick={onNewRdo}
             id="btn-create-rdo"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-lg transition-colors shadow-xs"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4.5 py-2.5 rounded-lg transition-colors shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Lançar RDO Diário</span>
@@ -303,8 +304,8 @@ export function RdoListView({
                           <span className="font-bold text-gray-900 block font-mono">
                             {new Date(rdo.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </span>
-                          <span className="text-[10px] uppercase font-semibold text-gray-400 mt-0.5 block">
-                            T: {rdo.shift}
+                          <span className="text-[10px] uppercase font-semibold text-gray-500 mt-0.5 block font-mono">
+                            {getRdoSequentialCode(rdo, rdos)} • Turno: {rdo.shift}
                           </span>
                         </div>
                       </div>
@@ -368,29 +369,41 @@ export function RdoListView({
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        {/* Allow direct editing if in Rascunho, or Correção solicitada. Only for owner or Admin */}
+                        {/* Allow direct editing if in Rascunho, or Correção solicitada. Only for owner or Admin/Manager */}
                         {(rdo.status === 'Rascunho' || rdo.status === 'Correção solicitada') && 
-                         (currentUser.role === 'admin' || (currentUser.role === 'contractor' && currentUser.companyId === rdo.companyId)) && (
+                         (currentUser.role === 'admin' || currentUser.role === 'manager' || (currentUser.role === 'contractor' && currentUser.companyId === rdo.companyId)) && (
                           <button
                             onClick={() => onEditRdo(rdo.id)}
-                            className="p-1.5 text-gray-500 hover:text-amber-600 bg-gray-50 hover:bg-amber-50 border border-gray-100 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-500 hover:text-amber-600 bg-gray-50 hover:bg-amber-50 border border-gray-100 rounded-lg transition-colors cursor-pointer"
                             title="Editar Formulário"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                         )}
 
-                        {/* Delete: if Rascunho or Correção solicitada. Only owner or Admin */}
-                        {(rdo.status === 'Rascunho' || rdo.status === 'Correção solicitada') && 
-                         (currentUser.role === 'admin' || (currentUser.role === 'contractor' && currentUser.companyId === rdo.companyId)) && (
-                          <button
-                            onClick={() => onDeleteRdo(rdo.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-100 rounded-lg transition-colors"
-                            title="Excluir Rascunho"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        {/* Delete: Contractor can delete draft/correction, but once approved or if user is admin/manager they have authorized delete capabilities */}
+                        {(() => {
+                          const isApprovedOrFinalStatus = rdo.status === 'Aprovado' || rdo.status === 'Medido' || rdo.status === 'Bloqueado para medição';
+                          let canDelete = false;
+
+                          if (currentUser.role === 'admin' || currentUser.role === 'manager') {
+                            canDelete = true;
+                          } else if (currentUser.role === 'contractor' && currentUser.companyId === rdo.companyId) {
+                            if (!isApprovedOrFinalStatus) {
+                              canDelete = rdo.status === 'Rascunho' || rdo.status === 'Correção solicitada';
+                            }
+                          }
+
+                          return canDelete && (
+                            <button
+                              onClick={() => onDeleteRdo(rdo.id)}
+                              className="p-1.5 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-100 rounded-lg transition-colors cursor-pointer"
+                              title="Excluir Diário"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          );
+                        })()}
 
                       </div>
                     </td>

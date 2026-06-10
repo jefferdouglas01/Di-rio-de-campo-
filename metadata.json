@@ -1,5 +1,5 @@
 {
-  "name": "RDO & Medição",
+  "name": "RDO APP",
   "description": "Sistema completo para lançamento, conferência, correção e medição de Relatórios Diários de Obra (RDO) para empresas contratadas.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
