@@ -109,7 +109,14 @@ export function RdoFormView({
       });
       
       if (!response.ok) {
-        throw new Error("Não foi possível conectar com o servidor de Inteligência Artificial.");
+        let errMsg = "Não foi possível conectar com o servidor de Inteligência Artificial.";
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) {
+            errMsg = `Erro no Servidor IA: ${errData.error}`;
+          }
+        } catch (_) {}
+        throw new Error(errMsg);
       }
       
       const data = await response.json();

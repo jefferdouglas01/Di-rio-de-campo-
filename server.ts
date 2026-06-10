@@ -9,15 +9,107 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Initialize Google Gemini Client safely on the server side
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+// Initialize Google Gemini Client safely with active secret fallback (GEMINI_API_RDO or GEMINI_API_KEY)
+function getApiKey(): string | undefined {
+  return process.env.GEMINI_API_RDO || process.env.GEMINI_API_KEY;
+}
+
+class GeminiProxy {
+  private getClient() {
+    const key = getApiKey();
+    if (!key) {
+      throw new Error("A chave de API do Gemini não foi encontrada. Crie um secret chamado GEMINI_API_KEY ou GEMINI_API_RDO no painel Secrets.");
     }
+    return new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
-});
+
+  get models() {
+    const self = this;
+    return {
+      async generateContent(params: any) {
+        const client = self.getClient();
+        
+        // List of models to try in sequence if a model is unavailable or overloaded
+        const requestedModel = params.model || "gemini-3.5-flash";
+        const modelsToTry = [
+          requestedModel,
+          "gemini-3.1-flash-lite",
+          "gemini-2.5-flash",
+          "gemini-flash-latest"
+        ];
+        
+        const uniqueModels = Array.from(new Set(modelsToTry.filter(Boolean)));
+        let lastError: any = null;
+        
+        for (const model of uniqueModels) {
+          const currentParams = { ...params, model };
+          const maxAttempts = 3;
+          let delay = 1000; // Starts with 1 second delay
+          
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              console.log(`[Gemini API] Tentativa ${attempt}/${maxAttempts} usando o modelo: ${model}`);
+              const res = await client.models.generateContent(currentParams);
+              console.log(`[Gemini API] Sucesso com o modelo: ${model}`);
+              return res; // Sucesso!
+            } catch (err: any) {
+              lastError = err;
+              const statusStr = String(err.status || err.statusCode || "");
+              const errMsg = String(err.message || "").toLowerCase();
+              
+              // Detects transient / overloaded server errors (503, 429, UNAVAILABLE, etc.)
+              const isTransient = 
+                statusStr.includes("UNAVAILABLE") || 
+                statusStr.includes("503") || 
+                statusStr.includes("429") || 
+                errMsg.includes("503") || 
+                errMsg.includes("demand") || 
+                errMsg.includes("busy") || 
+                errMsg.includes("temporary") || 
+                errMsg.includes("unavailable");
+                
+              if (isTransient && attempt < maxAttempts) {
+                console.warn(`[Gemini API] Servidor sobrecarregado (Erro ${statusStr || "503"}). Aguardando ${delay}ms para tentar novamente...`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+                delay *= 2; // Exponential backoff
+              } else {
+                // If it's a terminal client error (e.g. key issue, bad prompt) or we exhausted attempts,
+                // we break the repeat loop and proceed to the fallback model if applicable
+                break;
+              }
+            }
+          }
+          
+          console.warn(`[Gemini API] Modelo ${model} falhou persistentemente. Avançando para o modelo reserva se disponível...`);
+        }
+        
+        // Extract a friendly description if possible
+        let friendlyMessage = "Infelizmente o servidor da inteligência artificial está temporariamente indisponível devido a alta demanda da Google. Por favor, tente novamente em alguns instantes.";
+        if (lastError && lastError.message) {
+          const errMsg = lastError.message.toLowerCase();
+          if (errMsg.includes("api key") || errMsg.includes("not found") || errMsg.includes("invalid")) {
+            friendlyMessage = "Erro com a chave de API (Secret). Verifique se a sua chave GEMINI_API_RDO adicionada no menu Secrets é válida e está correta.";
+          } else if (errMsg.includes("demand") || errMsg.includes("overloaded") || errMsg.includes("503")) {
+            friendlyMessage = "O serviço de IA está com tráfego muito alto neste momento (Erro 503). Por favor, realize uma nova tentativa agora ou aguarde alguns segundos.";
+          } else if (errMsg.includes("quota") || errMsg.includes("limit")) {
+            friendlyMessage = "Limite de cota diária ou por minuto atingido para esta chave de API gratuita. Por favor, aguarde um momento para tentar novamente.";
+          }
+        }
+        
+        throw new Error(friendlyMessage);
+      }
+    };
+  }
+}
+
+const ai = new GeminiProxy() as unknown as GoogleGenAI;
 
 // Parse JSON request bodies
 app.use(express.json({ limit: '10mb' }));

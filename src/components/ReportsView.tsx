@@ -173,7 +173,14 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
       });
 
       if (!response.ok) {
-        throw new Error("Falha ao comunicar com o processador de relatórios por IA.");
+        let errMsg = "Falha ao comunicar com o processador de relatórios por IA.";
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) {
+            errMsg = `Erro no Servidor IA: ${errData.error}`;
+          }
+        } catch (_) {}
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
