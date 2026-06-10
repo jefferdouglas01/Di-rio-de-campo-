@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Building2, 
@@ -16,7 +16,9 @@ import {
   Search, 
   FileCheck,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, AuditLog } from '../types';
 import { getRdoSequentialCode } from '../utils';
@@ -35,7 +37,8 @@ type ReportTemplate =
   | 'hours_contract'
   | 'pending_reports'
   | 'hse_incidents'
-  | 'audit_history';
+  | 'audit_history'
+  | 'ai_consolidation';
 
 export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser }: ReportsViewProps) {
   
@@ -45,6 +48,27 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
   const [selectedRdoId, setSelectedRdoId] = useState<string>(rdos[0]?.id || '');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [selectedContractId, setSelectedContractId] = useState<string>('all');
+
+  // AI Period Consolidation States
+  const [selectedAiContractId, setSelectedAiContractId] = useState<string>('all');
+  const [selectedAiCompanyId, setSelectedAiCompanyId] = useState<string>('all');
+  const [consolidationStartDate, setConsolidationStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30); // 30 dias atrás por padrão
+    return d.toISOString().split('T')[0];
+  });
+  const [consolidationEndDate, setConsolidationEndDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [isConsolidating, setIsConsolidating] = useState<boolean>(false);
+  const [consolidationResult, setConsolidationResult] = useState<string>('');
+
+  // Auto-select first RDO ID if it becomes available later
+  useEffect(() => {
+    if (rdos.length > 0 && !selectedRdoId) {
+      setSelectedRdoId(rdos[0].id);
+    }
+  }, [rdos, selectedRdoId]);
 
   // Trigger export alert with signatures metadata
   const triggerExport = (format: 'PDF' | 'Excel') => {
@@ -111,6 +135,64 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
   const activeRdoSheet = rdos.find(r => r.id === selectedRdoId);
   const sheetCompany = companies.find(c => c.id === activeRdoSheet?.companyId);
   const sheetContract = contracts.find(cnt => cnt.id === activeRdoSheet?.contractId);
+
+  // Gemini consolidation backend triggers
+  const handleGenerateAiConsolidation = async () => {
+    const filtered = rdos.filter(r => {
+      const dateInPeriod = r.date >= consolidationStartDate && r.date <= consolidationEndDate;
+      const matchContract = selectedAiContractId === 'all' || r.contractId === selectedAiContractId;
+      const matchCompany = selectedAiCompanyId === 'all' || r.companyId === selectedAiCompanyId;
+      return dateInPeriod && matchContract && matchCompany;
+    });
+
+    if (filtered.length === 0) {
+      alert("Nenhum RDO foi encontrado no período e filtros de empresa/contrato fornecidos.");
+      return;
+    }
+
+    setIsConsolidating(true);
+    setConsolidationResult('');
+
+    try {
+      const contractObj = contracts.find(c => c.id === selectedAiContractId) || null;
+      const companyObj = companies.find(c => c.id === selectedAiCompanyId) || null;
+      
+      const partsStart = consolidationStartDate.split("-");
+      const partsEnd = consolidationEndDate.split("-");
+      const periodText = `De ${partsStart[2]}/${partsStart[1]}/${partsStart[0]} até ${partsEnd[2]}/${partsEnd[1]}/${partsEnd[0]}`;
+
+      const response = await fetch("/api/gemini/consolidate-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rdos: filtered,
+          contract: contractObj,
+          company: companyObj,
+          periodText
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao comunicar com o processador de relatórios por IA.");
+      }
+
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.report) {
+        setConsolidationResult(data.report);
+      } else {
+        throw new Error("Não foi gerado conteúdo consolidado.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`Falha ao consolidar por IA: ${err.message || 'Erro inesperado'}`);
+    } finally {
+      setIsConsolidating(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn" id="reports-main-view">
@@ -207,6 +289,16 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
           >
             <History className="w-4.5 h-4.5" />
             <span>Histórico de Auditorias</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTemplate('ai_consolidation')}
+            className={`w-full flex items-center gap-2.5 text-xs text-left font-bold p-3 rounded-lg transition-colors cursor-pointer ${
+              activeTemplate === 'ai_consolidation' ? 'bg-indigo-100/60 text-indigo-950 border border-indigo-200' : 'text-gray-650 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
+            <Sparkles className="w-4.5 h-4.5 text-blue-600 animate-pulse" />
+            <span className="font-bold">Consolidação por IA ✨</span>
           </button>
         </div>
 
@@ -617,9 +709,223 @@ export function ReportsView({ rdos, companies, contracts, auditLogs, currentUser
             </div>
           )}
 
+          {/* Template 7: Consolidação por IA */}
+          {activeTemplate === 'ai_consolidation' && (
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-6 animate-fadeIn" id="reports-ai-consolidation">
+              <div className="border-b border-gray-100 pb-4">
+                <h3 className="font-sans font-bold text-gray-950 text-sm">Consolidação e Relatórios Periódicos por IA</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Filtre o período e contratos para condensar todos os diários de obra (RDOs) em um relatório executivo de alto padrão gerado pelo Gemini.</p>
+              </div>
+
+              {/* Filtering block inside tab */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 border border-gray-200/60 p-4 rounded-xl text-xs">
+                {/* Contract Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-gray-650">Filtrar por Contrato</label>
+                  <select
+                    value={selectedAiContractId}
+                    onChange={(e) => setSelectedAiContractId(e.target.value)}
+                    className="bg-white border border-gray-200 p-2 rounded-lg font-semibold text-gray-800 shadow-xs"
+                  >
+                    <option value="all">Todos os Contratos</option>
+                    {contracts.map(c => (
+                      <option key={c.id} value={c.id}>{c.contractNumber} ({c.client})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Company Selection */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-gray-650">Filtrar por Contratada</label>
+                  <select
+                    value={selectedAiCompanyId}
+                    onChange={(e) => setSelectedAiCompanyId(e.target.value)}
+                    className="bg-white border border-gray-200 p-2 rounded-lg font-semibold text-gray-800 shadow-xs"
+                  >
+                    <option value="all">Todas as Empresas</option>
+                    {companies.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Start Date */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-gray-650 font-sans">Data Início</label>
+                  <input
+                    type="date"
+                    value={consolidationStartDate}
+                    onChange={(e) => setConsolidationStartDate(e.target.value)}
+                    className="bg-white border border-gray-200 p-2 rounded-lg font-semibold text-center text-gray-850 shadow-xs"
+                  />
+                </div>
+
+                {/* End Date */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-semibold text-gray-650 font-sans">Data Fim</label>
+                  <input
+                    type="date"
+                    value={consolidationEndDate}
+                    onChange={(e) => setConsolidationEndDate(e.target.value)}
+                    className="bg-white border border-gray-200 p-2 rounded-lg font-semibold text-center text-gray-850 shadow-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Status information and trigger action */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-blue-50/50 border border-blue-100 p-4 rounded-xl text-xs">
+                <div className="text-blue-900/90 font-semibold leading-relaxed">
+                  <span>RDOs Selecionados no Período: </span>
+                  <strong className="underline text-blue-950 font-bold">
+                    {rdos.filter(r => {
+                      const dateInPeriod = r.date >= consolidationStartDate && r.date <= consolidationEndDate;
+                      const matchContract = selectedAiContractId === 'all' || r.contractId === selectedAiContractId;
+                      const matchCompany = selectedAiCompanyId === 'all' || r.companyId === selectedAiCompanyId;
+                      return dateInPeriod && matchContract && matchCompany;
+                    }).length} RDOs encontrados.
+                  </strong>
+                  <p className="text-[10px] text-blue-700/80 font-normal mt-0.5">O Gemini analisará as frentes de trabalho, horas acumuladas, clima e segurança ocupacional.</p>
+                </div>
+
+                <button
+                  onClick={handleGenerateAiConsolidation}
+                  disabled={isConsolidating}
+                  className={`flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-xs font-bold shrink-0 transition-all cursor-pointer shadow-xs ${
+                    isConsolidating 
+                      ? 'bg-blue-600/50 text-white cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {isConsolidating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Consolidando RDOs...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>Gerar Consolidação por IA</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Loading active skeletons */}
+              {isConsolidating && (
+                <div className="border border-gray-200 rounded-xl p-6 bg-slate-50/30 space-y-4 animate-pulse">
+                  <div className="h-6 bg-gray-200 rounded-md w-1/3" />
+                  <div className="h-4 bg-gray-200 rounded-md w-1/2" />
+                  <div className="space-y-2 pt-4">
+                    <div className="h-3 bg-gray-200 rounded-md w-full" />
+                    <div className="h-3 bg-gray-200 rounded-md w-11/12" />
+                    <div className="h-3 bg-gray-200 rounded-md w-10/12" />
+                  </div>
+                  <div className="h-20 bg-gray-100 rounded-md w-full border border-dashed border-gray-200 flex items-center justify-center">
+                    <span className="text-[11px] text-gray-500 font-bold tracking-tight">O Gemini está condensando o progresso de faturamento (Pode levar até 12 segundos)...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Display Result Document Sheet */}
+              {consolidationResult && (
+                <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-xs space-y-6 relative border-t-4 border-t-blue-600">
+                  <span className="absolute right-6 top-6 px-2.5 py-1 bg-indigo-50 border border-indigo-150 rounded text-[10px] font-bold uppercase text-indigo-700">
+                    Relatório Corporativo IA
+                  </span>
+
+                  <div className="flex justify-between items-center pb-4 border-b border-gray-100">
+                    <div>
+                      <h4 className="font-sans font-black text-slate-900 text-sm">RELATÓRIO CONSOLIDADO PERIÓDICO</h4>
+                      <p className="text-[10px] text-gray-400 font-mono mt-0.5">Período: {consolidationStartDate.split('-').reverse().join('/')} a {consolidationEndDate.split('-').reverse().join('/')}</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(consolidationResult);
+                          alert("Sucesso! Relatório copiado para a área de transferência.");
+                        }}
+                        className="text-[10px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded transition-all cursor-pointer shadow-xs"
+                      >
+                        Copiar Relatório
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Render content */}
+                  <div className="bg-slate-50/50 p-4 rounded-xl border border-gray-100">
+                    <AIMarkdownViewer markdown={consolidationResult} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
 
       </div>
+    </div>
+  );
+}
+
+function AIMarkdownViewer({ markdown }: { markdown: string }) {
+  if (!markdown) return null;
+
+  const lines = markdown.split('\n');
+  return (
+    <div className="space-y-4 text-xs font-sans text-gray-800 leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('###')) {
+          return (
+            <h5 key={idx} className="text-xs font-bold text-slate-800 mt-4 border-l-2 border-slate-400 pl-2">
+              {trimmed.replace('###', '').trim()}
+            </h5>
+          );
+        }
+        if (trimmed.startsWith('##')) {
+          return (
+            <h4 key={idx} className="text-sm font-bold text-slate-900 mt-6 border-b pb-1 border-gray-100 flex items-center gap-1.5">
+              {trimmed.replace('##', '').trim()}
+            </h4>
+          );
+        }
+        if (trimmed.startsWith('#')) {
+          return (
+            <h3 key={idx} className="text-base font-bold text-slate-950 mt-8 border-b-2 pb-2 border-gray-200 uppercase tracking-tight">
+              {trimmed.replace('#', '').trim()}
+            </h3>
+          );
+        }
+        if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+          return (
+            <div key={idx} className="flex gap-2 pl-4">
+              <span className="text-blue-500 shrink-0">•</span>
+              <span className="text-xs text-gray-700 font-semibold">{trimmed.slice(1).trim()}</span>
+            </div>
+          );
+        }
+        // Check if table row:
+        if (trimmed.startsWith('|')) {
+          const cells = trimmed.split('|').map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
+          // Skip divider rows e.g. |---|---|
+          if (cells.some(c => c.includes('---'))) return null;
+          return (
+            <div key={idx} className="grid grid-cols-4 gap-4 p-2.5 bg-white border border-gray-155 rounded-md text-[11px] font-mono leading-none font-semibold text-gray-700">
+              {cells.map((cell, cidx) => (
+                <span key={cidx} className="truncate">{cell}</span>
+              ))}
+            </div>
+          );
+        }
+        if (trimmed === '') return <div key={idx} className="h-2" />;
+        
+        return (
+          <p key={idx} className="text-xs text-gray-600 font-medium">
+            {trimmed}
+          </p>
+        );
+      })}
     </div>
   );
 }

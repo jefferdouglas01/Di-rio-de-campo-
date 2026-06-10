@@ -20,7 +20,11 @@ import {
   Paperclip,
   AlertCircle,
   HelpCircle,
-  UserCheck
+  UserCheck,
+  Sparkles,
+  Mic,
+  MicOff,
+  Loader2
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, WorkerEntry, EquipmentEntry, RdoStatus } from '../types';
 
@@ -43,6 +47,120 @@ export function RdoFormView({
 }: RdoFormViewProps) {
   // Determine if editing or creating
   const isEditing = !!rdoToEdit;
+
+  // AI & Voice Dictation States
+  const [aiText, setAiText] = useState<string>('');
+  const [isAiProcessing, setIsAiProcessing] = useState<boolean>(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [speechSupported, setSpeechSupported] = useState<boolean>(false);
+  const [recognitionObj, setRecognitionObj] = useState<any>(null);
+
+  // Initialize browser-native Web Speech API for free high-quality voice-to-text
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'pt-BR';
+      
+      rec.onresult = (event: any) => {
+        const lastResultIndex = event.results.length - 1;
+        const text = event.results[lastResultIndex][0].transcript;
+        setAiText((prev) => (prev ? prev + ' ' + text : text));
+      };
+      
+      rec.onend = () => {
+        setIsListening(false);
+      };
+      
+      setRecognitionObj(rec);
+    }
+  }, []);
+
+  const handleToggleListen = () => {
+    if (!recognitionObj) return;
+    if (isListening) {
+      recognitionObj.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionObj.start();
+        setIsListening(true);
+      } catch (err) {
+        console.error("Erro ao iniciar captura de voz:", err);
+      }
+    }
+  };
+
+  const handleAiProcess = async () => {
+    if (!aiText.trim()) {
+      alert("Por favor, digite ou dite um relato de campo para fazermos o preenchimento inteligente.");
+      return;
+    }
+    
+    setIsAiProcessing(true);
+    try {
+      const response = await fetch("/api/gemini/parse-rdo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: aiText, currentDate: date })
+      });
+      
+      if (!response.ok) {
+        throw new Error("Não foi possível conectar com o servidor de Inteligência Artificial.");
+      }
+      
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      const resultObj = data.result;
+      if (resultObj) {
+        if (resultObj.weather) setWeather(resultObj.weather);
+        if (resultObj.shift) setShift(resultObj.shift);
+        if (resultObj.activities) setActivities(resultObj.activities);
+        
+        if (resultObj.workers && Array.isArray(resultObj.workers)) {
+          const mappedWorkers: WorkerEntry[] = resultObj.workers.map((w: any, idx: number) => ({
+            id: `w-ai-${Date.now()}-${idx}`,
+            name: w.name || '',
+            role: w.role || '',
+            normalHours: typeof w.normalHours === 'number' ? w.normalHours : 8,
+            extraHours: typeof w.extraHours === 'number' ? w.extraHours : 0,
+            nightHours: typeof w.nightHours === 'number' ? w.nightHours : 0
+          }));
+          setWorkers(mappedWorkers);
+        }
+        
+        if (resultObj.equipments && Array.isArray(resultObj.equipments)) {
+          const mappedEquipments: EquipmentEntry[] = resultObj.equipments.map((e: any, idx: number) => ({
+            id: `eq-ai-${Date.now()}-${idx}`,
+            name: e.name || '',
+            quantity: typeof e.quantity === 'number' ? e.quantity : 1,
+            status: e.status === 'parado' ? 'parado' : 'operando'
+          }));
+          setEquipments(mappedEquipments);
+        }
+        
+        if (resultObj.hasHseIncident !== undefined) setHasHseIncident(!!resultObj.hasHseIncident);
+        if (resultObj.hseDetails) setHseDetails(resultObj.hseDetails);
+        if (resultObj.interferences) setInterferences(resultObj.interferences);
+        if (resultObj.stoppages) setStoppages(resultObj.stoppages);
+        if (resultObj.additionalRemarks) setAdditionalRemarks(resultObj.additionalRemarks);
+        
+        alert("✨ Sucesso! O diário foi inteiramente preenchido com base no seu relato de campo por IA. Revise os campos e confirme.");
+        setAiText(''); // Limpa o painel após sucesso
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`Falha no preenchimento por IA: ${err.message || 'Erro de rede ou de processamento'}`);
+    } finally {
+      setIsAiProcessing(false);
+    }
+  };
 
   // Root state values
   const [date, setDate] = useState<string>('');
@@ -388,6 +506,118 @@ export function RdoFormView({
         {/* Left column - main fields: 8 cols */}
         <div className="lg:col-span-8 space-y-6">
           
+          {/* Preenchimento Inteligente por IA (Ditado ou Texto Corrido) */}
+          <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/50 border border-blue-200/80 shadow-xs rounded-xl p-5 space-y-4" id="ai-smartfill-container">
+            <div className="flex justify-between items-start gap-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-blue-600 animate-pulse shrink-0" />
+                <div>
+                  <h3 className="text-sm font-sans font-bold text-blue-900 tracking-tight">
+                    Preenchimento Inteligente por IA
+                  </h3>
+                  <p className="text-[11px] text-blue-700/80 mt-0.5">
+                    Dite ou digite o resumo das atividades, equipe de hoje e intercorrências. O Gemini preencherá toda a ficha!
+                  </p>
+                </div>
+              </div>
+              
+              <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                Lançamento Inteligente
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              <textarea
+                value={aiText}
+                onChange={(e) => setAiText(e.target.value)}
+                disabled={isAiProcessing}
+                placeholder="Exemplo de Ditado: 'Hoje o tempo limpou e fez sol. A equipe contou com Paulo Silva eletricista e Lucas Mendes ajudante trabalhando 8 horas cada um. Fizemos o cabeamento do quadro Q02 central e montagem de eletrocalhas. Tudo limpo e sem acidentes.' "
+                rows={3}
+                className="w-full bg-white border border-blue-100 rounded-lg p-3 text-xs text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-100 outline-none leading-relaxed font-medium placeholder-gray-400"
+              />
+              
+              <div className="flex flex-wrap justify-between items-center gap-3">
+                <div className="flex items-center gap-2">
+                  {speechSupported ? (
+                    <button
+                      type="button"
+                      onClick={handleToggleListen}
+                      disabled={isAiProcessing}
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                        isListening 
+                          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-sm'
+                          : 'bg-blue-100/60 hover:bg-blue-100 text-blue-800'
+                      }`}
+                      title={isListening ? "Parar de ouvir" : "Iniciar Ditador de Diário"}
+                    >
+                      {isListening ? (
+                        <>
+                          <MicOff className="w-4 h-4 text-white" />
+                          <span>Ouvindo... Clique para Parar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="w-4 h-4 text-blue-600" />
+                          <span>Ditar Relato (Voz)</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 font-semibold italic">
+                      Ditador não suportado neste navegador (Digite o texto corrido)
+                    </span>
+                  )}
+
+                  {aiText && (
+                    <button
+                      type="button"
+                      onClick={() => setAiText('')}
+                      disabled={isAiProcessing}
+                      className="text-xs text-gray-500 hover:text-gray-800 font-medium px-2 py-1"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAiProcess}
+                  disabled={isAiProcessing || !aiText.trim()}
+                  className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer ${
+                    isAiProcessing 
+                      ? 'bg-blue-600/50 text-white cursor-not-allowed'
+                      : !aiText.trim()
+                        ? 'bg-gray-200 text-gray-450 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {isAiProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Processando com Gemini...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Lançar por IA ✨</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {/* Real-time speech active status bar */}
+            {isListening && (
+              <div className="bg-red-50/50 border border-red-100/50 rounded-lg p-2 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping shrink-0" />
+                <span className="text-[10px] text-red-700 font-bold leading-none">
+                  Fale de forma clara a respeito da data, equipe, horas trabalhadas, maquinário e frentes de serviços atacadas...
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* General info block */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-5">
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider pb-3 border-b border-gray-50 flex items-center gap-2">
