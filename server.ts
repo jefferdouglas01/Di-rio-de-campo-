@@ -64,11 +64,34 @@ class GeminiProxy {
               const statusStr = String(err.status || err.statusCode || "");
               const errMsg = String(err.message || "").toLowerCase();
               
-              // Detects transient / overloaded server errors (503, 429, UNAVAILABLE, etc.)
+              // Se for erro de API key inválida ou falta de permissão, não adianta tentar outros modelos
+              const isKeyError = 
+                errMsg.includes("api key") || 
+                errMsg.includes("not found") || 
+                errMsg.includes("invalid") || 
+                errMsg.includes("unauthorized") || 
+                statusStr.includes("401") || 
+                statusStr.includes("403");
+                
+              if (isKeyError) {
+                throw new Error("Erro com a chave de API (Secret). Verifique se a sua chave GEMINI_API_RDO adicionada no menu Secrets é válida e está correta.");
+              }
+
+              // Se for limite de cota atingido (429), não adianta tentar outros modelos na mesma chave
+              const isQuotaError = 
+                errMsg.includes("quota") || 
+                errMsg.includes("limit") || 
+                errMsg.includes("exhausted") || 
+                statusStr.includes("429");
+                
+              if (isQuotaError) {
+                throw new Error("Limite de cota atingido para esta chave do Gemini. Você atingiu os limites diários (1500 requisições/dia) ou por minuto (15 requisições/min) da sua chave individual gratuita. Considere usar uma chave Pay-as-you-go ou aguarde um momento.");
+              }
+              
+              // Detects transient / overloaded server errors (503, UNAVAILABLE, etc.)
               const isTransient = 
                 statusStr.includes("UNAVAILABLE") || 
                 statusStr.includes("503") || 
-                statusStr.includes("429") || 
                 errMsg.includes("503") || 
                 errMsg.includes("demand") || 
                 errMsg.includes("busy") || 
