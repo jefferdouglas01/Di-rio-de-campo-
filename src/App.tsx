@@ -81,6 +81,7 @@ import { MeasurementView } from './components/MeasurementView';
 import { RegistrationView } from './components/RegistrationView';
 import { ReportsView } from './components/ReportsView';
 import { LoginView } from './components/LoginView';
+import { CompetLogo } from './components/CompetLogo';
 
 // Icons
 import { 
@@ -773,10 +774,12 @@ export default function App() {
             {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
 
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-          <span className="text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-widest text-slate-355 truncate">
-            Painel RDO - Base Operacional Integrada
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            <span className="text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-widest text-slate-300 truncate">
+              Painel RDO - Base Operacional Integrada
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -808,14 +811,14 @@ export default function App() {
         {/* SIDE BAR / LEFT NAVIGATOR */}
         <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 border-r border-slate-950 flex flex-col transform transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 print:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
           {/* Logo brand */}
-          <div className="p-6 border-b border-slate-950 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-blue-600 shadow-lg text-white flex items-center justify-center font-bold text-lg rounded-xl">
-                R
-              </div>
-              <div>
-                <span className="font-extrabold text-white text-sm tracking-tight block">RDO APP</span>
-                <span className="text-[10px] text-slate-450 block font-mono mt-0.5">Versão MVP 1.0</span>
+          <div className="p-5 border-b border-slate-950 flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="font-black text-white text-lg tracking-tight block">
+                Compet Engenharia
+              </span>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Gestão de Obras & RDO</span>
+                <span className="text-[9px] bg-blue-900/70 text-blue-300 font-mono px-1.5 py-0.5 rounded font-bold">PRO</span>
               </div>
             </div>
 
@@ -955,6 +958,7 @@ export default function App() {
                 rdoToEdit={rdoSpecEdit}
                 companies={filteredCompanies}
                 contracts={filteredContracts}
+                usersList={usersList}
                 currentUser={currentUser!}
                 onSave={handleSaveRdoRecord}
                 onCancel={handleCancelRdoForm}
@@ -966,6 +970,7 @@ export default function App() {
             <RdoFormView
               companies={filteredCompanies}
               contracts={filteredContracts}
+              usersList={usersList}
               currentUser={currentUser!}
               onSave={handleSaveRdoRecord}
               onCancel={handleCancelRdoForm}

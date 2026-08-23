@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, AlertCircle, HardHat, User as UserIcon, UserPlus, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { User, Company } from '../types';
+import { CompetLogo } from './CompetLogo';
 
 interface LoginViewProps {
   usersList: User[];
@@ -164,15 +165,20 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser, onResetPa
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
 
         <div className="text-center space-y-2">
-          <div className="inline-flex w-12 h-12 bg-blue-600/10 text-blue-500 rounded-2xl items-center justify-center ring-1 ring-blue-500/20 mx-auto">
+          <div className="inline-flex w-12 h-12 bg-blue-600/10 text-blue-400 rounded-2xl items-center justify-center ring-1 ring-blue-500/20 mx-auto">
             <HardHat className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-sans font-extrabold tracking-tight text-white block font-sans">
-            RDO APP
-          </h1>
-          <p className="text-xs text-slate-400">
-            Relatório Diário de Obra & Operações Integrado
-          </p>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-sans font-black tracking-tight text-white block">
+              Compet Engenharia
+            </h1>
+            <p className="text-sm font-semibold text-blue-400 tracking-wide mt-1">
+              Serviços de Fiscalização
+            </p>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              APP RDO - Relatórios Diários de Obra
+            </p>
+          </div>
         </div>
 
         {error && (
@@ -461,6 +467,13 @@ export function LoginView({ usersList, onLoginSuccess, onRegisterUser, onResetPa
             </div>
           </form>
         )}
+
+        {/* Footer brand signature */}
+        <div className="pt-4 border-t border-slate-900 text-center">
+          <p className="text-[11px] font-medium text-slate-500">
+            Compet Engenharia • Sistema de Gestão Operacional & RDO
+          </p>
+        </div>
       </div>
     </div>
   );

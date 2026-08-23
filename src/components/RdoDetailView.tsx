@@ -21,7 +21,8 @@ import {
   TrendingDown,
   Edit2,
   FileText,
-  UserCheck
+  UserCheck,
+  MapPin
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, AuditLog, WorkerEntry, ChangeLogItem, RdoStatus } from '../types';
 import { getRdoSequentialCode } from '../utils';
@@ -110,8 +111,8 @@ export function RdoDetailView({
   // Process workflow changes
   const handleWorkflowSubmission = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!justificationInput.trim()) {
-      alert('Por favor, descreva uma justificativa para esta ação de aprovação/correção.');
+    if (approvalType !== 'Aprovar' && !justificationInput.trim()) {
+      alert('Por favor, informe o motivo ou as orientações para esta ação.');
       return;
     }
 
@@ -122,7 +123,7 @@ export function RdoDetailView({
       targetStatus = 'Aprovado';
       signatures = {
         approverSignature: rdo.approverSignature || currentUser.name,
-        executantSignature: rdo.executantSignature || currentUser.name,
+        executantSignature: rdo.executantSignature || (currentUser.role === 'contractor' ? currentUser.name : ''),
         approvalDate: rdo.approvalDate || new Date().toLocaleDateString('pt-BR'),
         executantDate: rdo.executantDate || new Date().toLocaleDateString('pt-BR')
       };
@@ -132,11 +133,28 @@ export function RdoDetailView({
       targetStatus = 'Reprovado';
     }
 
-    onUpdateStatus(rdo.id, targetStatus, justificationInput.trim(), [
+    onUpdateStatus(rdo.id, targetStatus, justificationInput.trim() || 'Aprovado diretamente pelo fiscal responsável.', [
       { field: 'status', oldValue: rdo.status, newValue: targetStatus }
     ], signatures);
 
     // reset states
+    setShowApprovalBox(false);
+    setJustificationInput('');
+  };
+
+  // Direct 1-click approve (no justification needed)
+  const handleDirectApprove = () => {
+    const targetStatus: RdoStatus = 'Aprovado';
+    const signatures = {
+      approverSignature: rdo.approverSignature || currentUser.name,
+      executantSignature: rdo.executantSignature || (currentUser.role === 'contractor' ? currentUser.name : ''),
+      approvalDate: rdo.approvalDate || new Date().toLocaleDateString('pt-BR'),
+      executantDate: rdo.executantDate || new Date().toLocaleDateString('pt-BR')
+    };
+
+    onUpdateStatus(rdo.id, targetStatus, 'Aprovado pelo fiscal responsável.', [
+      { field: 'status', oldValue: rdo.status, newValue: targetStatus }
+    ], signatures);
     setShowApprovalBox(false);
     setJustificationInput('');
   };
@@ -246,15 +264,56 @@ export function RdoDetailView({
         <div className="lg:col-span-8 space-y-6">
           
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-5">
-            <h3 className="font-sans font-semibold text-gray-900 text-base border-b border-gray-50 pb-3 flex items-center justify-between">
-              <span>Relatório Diário de Obra</span>
-              <span className="text-xs font-mono text-gray-400">{getRdoSequentialCode(rdo, rdos)}</span>
-            </h3>
+            {/* CABEÇALHO OFICIAL DO DOCUMENTO / PDF */}
+            <div className="border-b-2 border-slate-900 pb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                {/* Canto Superior Esquerdo: Nome da Empresa Contratada */}
+                <div className="text-left max-w-full sm:max-w-[40%]">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">
+                    Empresa Contratada (Executante)
+                  </span>
+                  <span className="text-base font-black text-slate-900 leading-tight block mt-0.5">
+                    {company?.name || 'Empresa Contratada'}
+                  </span>
+                </div>
+
+                {/* Centro: Título do Documento & Identificação */}
+                <div className="text-left sm:text-center shrink-0">
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900">
+                    Relatório Diário de Obra
+                  </h3>
+                  <div className="flex items-center justify-start sm:justify-center gap-1.5 mt-1">
+                    <span className="px-2 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono font-bold text-xs text-slate-800">
+                      {getRdoSequentialCode(rdo, rdos)}
+                    </span>
+                    <span className={`text-[10px] uppercase font-bold border rounded px-1.5 py-0.5 ${rdo.shift === 'diurno' ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-indigo-950 text-white border-indigo-950'}`}>
+                      {rdo.shift}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-mono text-slate-600 mt-1">
+                    Data: {new Date(rdo.date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+
+                {/* Canto Superior Direito: Nome da Compet Engenharia */}
+                <div className="text-left sm:text-right max-w-full sm:max-w-[40%]">
+                  <span className="text-[10px] uppercase font-bold text-blue-700 tracking-wider block">
+                    Gerenciamento & Fiscalização
+                  </span>
+                  <span className="text-base font-black text-slate-900 leading-tight block mt-0.5">
+                    Compet Engenharia
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                    Serviços de Fiscalização
+                  </span>
+                </div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div>
-                <span className="text-gray-400 font-medium block">Cliente Requerente</span>
-                <span className="font-bold text-gray-800 mt-0.5 block">{contract?.client}</span>
+                <span className="text-gray-400 font-medium block">Contrato / Cliente Requerente</span>
+                <span className="font-bold text-gray-800 mt-0.5 block">{contract?.contractNumber} - {contract?.client}</span>
               </div>
               <div>
                 <span className="text-gray-400 font-medium block">Responsável em Campo</span>
@@ -473,22 +532,59 @@ export function RdoDetailView({
             
             {/* Health and safety report */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4" />
-                <span>Segurança e SSMA</span>
-              </h4>
-              <div className="pt-2">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Segurança e SSMA</span>
+                </h4>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rdo.hasHseIncident ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                  {rdo.hasHseIncident ? 'Ocorrência Registrada' : 'Sem Ocorrências'}
+                </span>
+              </div>
+
+              <div className="pt-1">
                 {rdo.hasHseIncident ? (
-                  <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-xs text-red-950 font-medium">
-                    <span className="font-bold block text-red-700">🚨 Ocorrência Registrada!</span>
-                    <span className="mt-2 block leading-relaxed whitespace-pre-line text-gray-700">
-                      {rdo.hseDetails}
-                    </span>
+                  <div className="bg-red-50/50 border border-red-100 rounded-xl p-4 text-xs text-red-950 space-y-3">
+                    {rdo.hseTime && (
+                      <div className="flex items-center gap-1.5 text-red-800 font-bold">
+                        <Clock className="w-3.5 h-3.5 text-red-600" />
+                        <span>Horário: {rdo.hseTime}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <span className="font-bold block text-red-800 text-[11px]">Descrição do Ocorrido:</span>
+                      <p className="mt-1 leading-relaxed whitespace-pre-line text-gray-800 bg-white/80 p-2.5 rounded-lg border border-red-100 font-medium">
+                        {rdo.hseDescription || rdo.hseDetails || 'Nenhum detalhe adicional informado.'}
+                      </p>
+                    </div>
+
+                    {rdo.hseInvolved && rdo.hseInvolved.length > 0 && (
+                      <div>
+                        <span className="font-bold block text-red-800 text-[11px] mb-1.5">Envolvidos do Ocorrido:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rdo.hseInvolved.map((inv, iIdx) => (
+                            <span key={iIdx} className="bg-red-100 text-red-800 border border-red-200 px-2 py-0.5 rounded-md text-[11px] font-bold">
+                              {inv}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {rdo.hseActions && (
+                      <div>
+                        <span className="font-bold block text-red-800 text-[11px]">Ações Tomadas / Medidas Preventivas:</span>
+                        <p className="mt-1 leading-relaxed whitespace-pre-line text-gray-800 bg-white/80 p-2.5 rounded-lg border border-red-100 font-medium">
+                          {rdo.hseActions}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-xs text-emerald-800 font-medium flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>Nenhum incidente de SSMA apontado. Equipe operando com segurança.</span>
+                    <span>Nenhum incidente de SSMA apontado. Equipe operando com segurança total.</span>
                   </div>
                 )}
               </div>
@@ -496,34 +592,49 @@ export function RdoDetailView({
 
             {/* Impedimentos list */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">
-                Impedimentos & Observações
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5 border-b border-gray-100 pb-2.5">
+                <MapPin className="w-4 h-4 text-blue-500" />
+                <span>Interferências & Paralisações</span>
               </h4>
               
-              <div className="space-y-3 pt-2 text-xs">
-                {rdo.stoppages ? (
+              <div className="space-y-3 pt-1 text-xs">
+                {rdo.stoppageArea ? (
                   <div>
-                    <span className="font-bold text-gray-500 block text-[10px] uppercase">Paralisações registradas:</span>
-                    <p className="text-gray-700 mt-1 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-100 font-medium">{rdo.stoppages}</p>
+                    <span className="font-bold text-gray-600 block text-[10px] uppercase">Área / Local Afetado:</span>
+                    <p className="text-gray-900 mt-1 leading-relaxed bg-gray-50 p-2 rounded-lg border border-gray-150 font-bold">{rdo.stoppageArea}</p>
+                  </div>
+                ) : null}
+
+                {rdo.internalInterferences ? (
+                  <div>
+                    <span className="font-bold text-gray-600 block text-[10px] uppercase">Interferência Interna:</span>
+                    <p className="text-gray-700 mt-1 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-150 font-medium">{rdo.internalInterferences}</p>
                   </div>
                 ) : null}
 
                 {rdo.interferences ? (
                   <div>
-                    <span className="font-bold text-gray-500 block text-[10px] uppercase">Interferências externas:</span>
-                    <p className="text-gray-700 mt-1 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-100 font-medium">{rdo.interferences}</p>
+                    <span className="font-bold text-gray-600 block text-[10px] uppercase">Interferências Externas:</span>
+                    <p className="text-gray-700 mt-1 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-150 font-medium">{rdo.interferences}</p>
+                  </div>
+                ) : null}
+
+                {rdo.stoppages ? (
+                  <div>
+                    <span className="font-bold text-gray-600 block text-[10px] uppercase">Paralisações Registradas:</span>
+                    <p className="text-gray-700 mt-1 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-150 font-medium">{rdo.stoppages}</p>
                   </div>
                 ) : null}
 
                 {rdo.additionalRemarks ? (
                   <div>
-                    <span className="font-bold text-gray-500 block text-[10px] uppercase">Anotações adicionais:</span>
-                    <p className="text-gray-500 mt-1 leading-relaxed italic">{rdo.additionalRemarks}</p>
+                    <span className="font-bold text-gray-600 block text-[10px] uppercase">Observações Gerais:</span>
+                    <p className="text-gray-600 mt-1 leading-relaxed italic bg-gray-50/60 p-2 rounded-lg border border-gray-100">{rdo.additionalRemarks}</p>
                   </div>
                 ) : null}
 
-                {!rdo.stoppages && !rdo.interferences && !rdo.additionalRemarks ? (
-                  <p className="text-xs text-gray-405 italic py-4">Sem anotações de interferências externas ou ocorrências impeditivas.</p>
+                {!rdo.stoppageArea && !rdo.internalInterferences && !rdo.stoppages && !rdo.interferences && !rdo.additionalRemarks ? (
+                  <p className="text-xs text-gray-400 italic py-4">Sem anotações de interferências ou ocorrências impeditivas.</p>
                 ) : null}
               </div>
             </div>
@@ -769,7 +880,7 @@ export function RdoDetailView({
               {!showApprovalBox ? (
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
                   <button
-                    onClick={() => { setApprovalType('Aprovar'); setShowApprovalBox(true); }}
+                    onClick={handleDirectApprove}
                     className="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2.5 rounded-lg transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <CheckCircle2 className="w-4 h-4" />
@@ -795,78 +906,63 @@ export function RdoDetailView({
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold uppercase text-gray-700">
                       Ação: <span className={
-                        approvalType === 'Aprovar' ? 'text-green-600' : approvalType === 'Correcao' ? 'text-amber-600' : 'text-red-600'
-                      }>{approvalType === 'Aprovar' ? 'Deferimento / Aprovação' : approvalType === 'Correcao' ? 'Solicitar Ajustes' : 'Reprovação Definitiva'}</span>
+                        approvalType === 'Correcao' ? 'text-amber-600' : 'text-red-600'
+                      }>{approvalType === 'Correcao' ? 'Solicitar Ajustes' : 'Reprovação Definitiva'}</span>
                     </span>
                     <button 
                       type="button" 
                       onClick={() => setShowApprovalBox(false)}
-                      className="text-gray-400 hover:bg-gray-200 px-1.5 rounded"
+                      className="text-gray-400 hover:bg-gray-200 px-1.5 rounded cursor-pointer"
                     >
                       ×
                     </button>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-gray-600 block">Justificativa de despacho *</label>
+                    <label className="text-[11px] font-bold text-gray-600 block">
+                      {approvalType === 'Correcao' 
+                        ? 'Indique quais itens ou horas o contratado deve retificar *' 
+                        : 'Motivo da reprovação do diário de obras *'}
+                    </label>
                     <textarea
                       value={justificationInput}
                       onChange={(e) => setJustificationInput(e.target.value)}
                       placeholder={
-                        approvalType === 'Aprovar' 
-                        ? 'Explique os motivos da aprovação oficial do faturamento...'
-                        : approvalType === 'Correcao' 
-                        ? 'Indique quais campos, profissionais ou horas extras o contratado deve retificar...'
-                        : 'Descreva detalhadamente o porquê da rejeição do apontamento...'
+                        approvalType === 'Correcao' 
+                        ? 'Ex: Ajustar lançamento de horas extras da equipe de montagem...'
+                        : 'Ex: Atividades não condizentes com o cronograma ou divergência crítica de efetivo...'
                       }
                       rows={3}
-                      className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800 leading-relaxed outline-hidden focus:border-blue-500"
+                      className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-xs text-gray-800 leading-relaxed outline-hidden focus:border-blue-500 font-medium"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className={`w-full text-white text-xs font-bold py-2.5 rounded-lg transition-colors ${
-                      approvalType === 'Aprovar' ? 'bg-green-600 hover:bg-green-700' : approvalType === 'Correcao' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'
+                    className={`w-full text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer ${
+                      approvalType === 'Correcao' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'
                     }`}
                   >
-                    Confirmar Despacho Oficial
+                    {approvalType === 'Correcao' ? 'Enviar Solicitação de Correção' : 'Confirmar Reprovação'}
                   </button>
                 </form>
               )}
             </div>
           )}
 
-          {/* Evidence and File downloads */}
+          {/* Registro Fotográfico */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-3">
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
               <Paperclip className="w-4 h-4 text-gray-450" />
-              <span>Anexos Técnico-Fotográficos ({rdo.attachments.length})</span>
+              <span>Registro Fotográfico</span>
             </h3>
 
-            {rdo.attachments.length > 0 ? (
-              <div className="space-y-2 pt-1 text-xs">
-                {rdo.attachments.map((file, i) => (
-                  <div key={i} className="flex justify-between items-center p-2.5 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="w-4 h-4 text-blue-500 shrink-0" />
-                      <span className="font-mono text-gray-700 font-semibold truncate block max-w-[180px]">{file}</span>
-                    </div>
-                    {/* Simulated download */}
-                    <a
-                      href="#"
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); alert(`Download simulado de arquivo técnico: ${file}`); }}
-                      className="text-[11px] font-bold text-blue-600 hover:underline shrink-0"
-                    >
-                      Ver DOC
-                    </a>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic text-center py-4 bg-gray-50/20 rounded-lg border border-dashed">Sem arquivos anexados pelo contratado para este dia.</p>
-            )}
+            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="leading-relaxed font-medium">
+                As fotos deverão ser enviadas via e-mail caso tenha autorização formal do Cliente.
+              </p>
+            </div>
           </div>
 
           {/* Audit Logs Trail & Changes history - dynamic */}

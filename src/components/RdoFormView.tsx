@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, 
   Save, 
@@ -21,10 +21,11 @@ import {
   AlertCircle,
   HelpCircle,
   UserCheck,
-  Sparkles,
-  Mic,
-  MicOff,
-  Loader2
+  Clock,
+  Users,
+  MapPin,
+  X,
+  Check
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, WorkerEntry, EquipmentEntry, RdoStatus } from '../types';
 
@@ -32,6 +33,7 @@ interface RdoFormViewProps {
   rdoToEdit?: RdoRecord | null;
   companies: Company[];
   contracts: Contract[];
+  usersList?: User[];
   currentUser: User;
   onSave: (record: RdoRecord, isCommit: boolean) => void;
   onCancel: () => void;
@@ -41,133 +43,13 @@ export function RdoFormView({
   rdoToEdit,
   companies,
   contracts,
+  usersList = [],
   currentUser,
   onSave,
   onCancel
 }: RdoFormViewProps) {
   // Determine if editing or creating
   const isEditing = !!rdoToEdit;
-
-  // AI & Voice Dictation States
-  const [aiText, setAiText] = useState<string>('');
-  const [isAiProcessing, setIsAiProcessing] = useState<boolean>(false);
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [speechSupported, setSpeechSupported] = useState<boolean>(false);
-  const [recognitionObj, setRecognitionObj] = useState<any>(null);
-
-  // Initialize browser-native Web Speech API for free high-quality voice-to-text
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      const rec = new SpeechRecognition();
-      rec.continuous = true;
-      rec.interimResults = false;
-      rec.lang = 'pt-BR';
-      
-      rec.onresult = (event: any) => {
-        const lastResultIndex = event.results.length - 1;
-        const text = event.results[lastResultIndex][0].transcript;
-        setAiText((prev) => (prev ? prev + ' ' + text : text));
-      };
-      
-      rec.onend = () => {
-        setIsListening(false);
-      };
-      
-      setRecognitionObj(rec);
-    }
-  }, []);
-
-  const handleToggleListen = () => {
-    if (!recognitionObj) return;
-    if (isListening) {
-      recognitionObj.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognitionObj.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error("Erro ao iniciar captura de voz:", err);
-      }
-    }
-  };
-
-  const handleAiProcess = async () => {
-    if (!aiText.trim()) {
-      alert("Por favor, digite ou dite um relato de campo para fazermos o preenchimento inteligente.");
-      return;
-    }
-    
-    setIsAiProcessing(true);
-    try {
-      const response = await fetch("/api/gemini/parse-rdo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: aiText, currentDate: date })
-      });
-      
-      if (!response.ok) {
-        let errMsg = "Não foi possível conectar com o servidor de Inteligência Artificial.";
-        try {
-          const errData = await response.json();
-          if (errData && errData.error) {
-            errMsg = `Erro no Servidor IA: ${errData.error}`;
-          }
-        } catch (_) {}
-        throw new Error(errMsg);
-      }
-      
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      const resultObj = data.result;
-      if (resultObj) {
-        if (resultObj.weather) setWeather(resultObj.weather);
-        if (resultObj.shift) setShift(resultObj.shift);
-        if (resultObj.activities) setActivities(resultObj.activities);
-        
-        if (resultObj.workers && Array.isArray(resultObj.workers)) {
-          const mappedWorkers: WorkerEntry[] = resultObj.workers.map((w: any, idx: number) => ({
-            id: `w-ai-${Date.now()}-${idx}`,
-            name: w.name || '',
-            role: w.role || '',
-            normalHours: typeof w.normalHours === 'number' ? w.normalHours : 8,
-            extraHours: typeof w.extraHours === 'number' ? w.extraHours : 0,
-            nightHours: typeof w.nightHours === 'number' ? w.nightHours : 0
-          }));
-          setWorkers(mappedWorkers);
-        }
-        
-        if (resultObj.equipments && Array.isArray(resultObj.equipments)) {
-          const mappedEquipments: EquipmentEntry[] = resultObj.equipments.map((e: any, idx: number) => ({
-            id: `eq-ai-${Date.now()}-${idx}`,
-            name: e.name || '',
-            quantity: typeof e.quantity === 'number' ? e.quantity : 1,
-            status: e.status === 'parado' ? 'parado' : 'operando'
-          }));
-          setEquipments(mappedEquipments);
-        }
-        
-        if (resultObj.hasHseIncident !== undefined) setHasHseIncident(!!resultObj.hasHseIncident);
-        if (resultObj.hseDetails) setHseDetails(resultObj.hseDetails);
-        if (resultObj.interferences) setInterferences(resultObj.interferences);
-        if (resultObj.stoppages) setStoppages(resultObj.stoppages);
-        if (resultObj.additionalRemarks) setAdditionalRemarks(resultObj.additionalRemarks);
-        
-        alert("✨ Sucesso! O diário foi inteiramente preenchido com base no seu relato de campo por IA. Revise os campos e confirme.");
-        setAiText(''); // Limpa o painel após sucesso
-      }
-    } catch (err: any) {
-      console.error(err);
-      alert(`Falha no preenchimento por IA: ${err.message || 'Erro de rede ou de processamento'}`);
-    } finally {
-      setIsAiProcessing(false);
-    }
-  };
 
   // Root state values
   const [date, setDate] = useState<string>('');
@@ -183,16 +65,67 @@ export function RdoFormView({
   const [workers, setWorkers] = useState<WorkerEntry[]>([]);
   const [equipments, setEquipments] = useState<EquipmentEntry[]>([]);
   
-  // Additional safety / blockages
+  // Safety / SSMA States
   const [hasHseIncident, setHasHseIncident] = useState<boolean>(false);
+  const [hseTime, setHseTime] = useState<string>('');
+  const [hseDescription, setHseDescription] = useState<string>('');
+  const [hseInvolved, setHseInvolved] = useState<string[]>([]);
+  const [hseActions, setHseActions] = useState<string>('');
   const [hseDetails, setHseDetails] = useState<string>('');
+  const [customInvolvedInput, setCustomInvolvedInput] = useState<string>('');
+
+  // Interferences & Impedimentos States
+  const [stoppageArea, setStoppageArea] = useState<string>('');
+  const [internalInterferences, setInternalInterferences] = useState<string>('');
   const [interferences, setInterferences] = useState<string>('');
   const [stoppages, setStoppages] = useState<string>('');
   const [additionalRemarks, setAdditionalRemarks] = useState<string>('');
   
-  // Attachments
+  // Attachments / Fotos
   const [attachments, setAttachments] = useState<string[]>([]);
-  const [newAttachmentName, setNewAttachmentName] = useState<string>('');
+
+  // Filter available people for "Envolvidos no Ocorrido" based on logged user permissions and company
+  const availablePeopleForHse = useMemo(() => {
+    const list: { id: string; name: string; subtitle: string; isUser: boolean }[] = [];
+    const isElevated = currentUser.role === 'admin' || currentUser.role === 'manager';
+    const effectiveCompanyId = currentUser.role === 'contractor' ? (currentUser.companyId || companyId) : companyId;
+
+    // 1. Add users from database based on access level
+    usersList.forEach(u => {
+      const userCompany = companies.find(c => c.id === u.companyId);
+      if (isElevated) {
+        // Admins and Fiscals can access all users
+        list.push({
+          id: `usr-${u.id}`,
+          name: u.name,
+          subtitle: `${userCompany?.name || 'Administração'} (${u.role === 'admin' ? 'Adm' : u.role === 'manager' ? 'Fiscal' : 'Executante'})`,
+          isUser: true
+        });
+      } else if (u.companyId === effectiveCompanyId) {
+        // Contractors only have access to their company's linked people
+        list.push({
+          id: `usr-${u.id}`,
+          name: u.name,
+          subtitle: userCompany?.name || 'Sua Empresa',
+          isUser: true
+        });
+      }
+    });
+
+    // 2. Also include workers listed in current RDO team
+    workers.forEach(w => {
+      if (w.name.trim() && !list.some(p => p.name.toLowerCase() === w.name.trim().toLowerCase())) {
+        list.push({
+          id: `wrk-${w.id}`,
+          name: w.name.trim(),
+          subtitle: `${w.role || 'Trabalhador'} (Equipe em Campo)`,
+          isUser: false
+        });
+      }
+    });
+
+    return list;
+  }, [usersList, currentUser, companyId, companies, workers]);
 
   // Pre-seed inputs when component mounts or edits
   useEffect(() => {
@@ -208,7 +141,13 @@ export function RdoFormView({
       setWorkers([...rdoToEdit.workers]);
       setEquipments([...rdoToEdit.equipments]);
       setHasHseIncident(rdoToEdit.hasHseIncident);
+      setHseTime(rdoToEdit.hseTime || '');
+      setHseDescription(rdoToEdit.hseDescription || rdoToEdit.hseDetails || '');
+      setHseInvolved(rdoToEdit.hseInvolved || []);
+      setHseActions(rdoToEdit.hseActions || '');
       setHseDetails(rdoToEdit.hseDetails || '');
+      setStoppageArea(rdoToEdit.stoppageArea || '');
+      setInternalInterferences(rdoToEdit.internalInterferences || '');
       setInterferences(rdoToEdit.interferences || '');
       setStoppages(rdoToEdit.stoppages || '');
       setAdditionalRemarks(rdoToEdit.additionalRemarks || '');
@@ -247,13 +186,33 @@ export function RdoFormView({
       setWorkers([]);
       setEquipments([]);
       setHasHseIncident(false);
+      setHseTime('');
+      setHseDescription('');
+      setHseInvolved([]);
+      setHseActions('');
       setHseDetails('');
+      setStoppageArea('');
+      setInternalInterferences('');
       setInterferences('');
       setStoppages('');
       setAdditionalRemarks('');
       setAttachments([]);
     }
   }, [rdoToEdit, isEditing, currentUser, companies, contracts]);
+
+  // Handle adding involved person
+  const handleAddInvolvedPerson = (personName: string) => {
+    const trimmed = personName.trim();
+    if (!trimmed) return;
+    if (!hseInvolved.includes(trimmed)) {
+      setHseInvolved([...hseInvolved, trimmed]);
+    }
+    setCustomInvolvedInput('');
+  };
+
+  const handleRemoveInvolvedPerson = (personName: string) => {
+    setHseInvolved(hseInvolved.filter(p => p !== personName));
+  };
 
   // When company ID changes, filter the contracts list
   const handleCompanyChange = (id: string) => {
@@ -385,18 +344,6 @@ export function RdoFormView({
     setEquipments(equipments.filter(e => e.id !== id));
   };
 
-  // Document attachment action
-  const handleAddAttachment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAttachmentName.trim()) return;
-    setAttachments([...attachments, newAttachmentName.trim()]);
-    setNewAttachmentName('');
-  };
-
-  const handleRemoveAttachment = (idx: number) => {
-    setAttachments(attachments.filter((_, i) => i !== idx));
-  };
-
   // Save implementation
   const handleSubmit = (isCommit: boolean) => {
     // Basic verification criteria
@@ -437,6 +384,15 @@ export function RdoFormView({
       }
     }
 
+    const composedHseDetails = hasHseIncident 
+      ? [
+          hseTime ? `Horário: ${hseTime}` : '',
+          hseDescription ? `Descrição: ${hseDescription}` : '',
+          hseInvolved.length > 0 ? `Envolvidos: ${hseInvolved.join(', ')}` : '',
+          hseActions ? `Ações: ${hseActions}` : ''
+        ].filter(Boolean).join('\n')
+      : '';
+
     const payload: RdoRecord = {
       id: isEditing && rdoToEdit ? rdoToEdit.id : `rdo-${Date.now()}`,
       date,
@@ -450,7 +406,13 @@ export function RdoFormView({
       workers,
       equipments,
       hasHseIncident,
-      hseDetails: hasHseIncident ? hseDetails : '',
+      hseTime: hasHseIncident ? hseTime : '',
+      hseDescription: hasHseIncident ? hseDescription : '',
+      hseInvolved: hasHseIncident ? hseInvolved : [],
+      hseActions: hasHseIncident ? hseActions : '',
+      hseDetails: composedHseDetails || hseDetails,
+      stoppageArea,
+      internalInterferences,
       interferences,
       stoppages,
       additionalRemarks,
@@ -513,118 +475,6 @@ export function RdoFormView({
         {/* Left column - main fields: 8 cols */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* Preenchimento Inteligente por IA (Ditado ou Texto Corrido) */}
-          <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/50 border border-blue-200/80 shadow-xs rounded-xl p-5 space-y-4" id="ai-smartfill-container">
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-blue-600 animate-pulse shrink-0" />
-                <div>
-                  <h3 className="text-sm font-sans font-bold text-blue-900 tracking-tight">
-                    Preenchimento Inteligente por IA
-                  </h3>
-                  <p className="text-[11px] text-blue-700/80 mt-0.5">
-                    Dite ou digite o resumo das atividades, equipe de hoje e intercorrências. O Gemini preencherá toda a ficha!
-                  </p>
-                </div>
-              </div>
-              
-              <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
-                Lançamento Inteligente
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <textarea
-                value={aiText}
-                onChange={(e) => setAiText(e.target.value)}
-                disabled={isAiProcessing}
-                placeholder="Exemplo de Ditado: 'Hoje o tempo limpou e fez sol. A equipe contou com Paulo Silva eletricista e Lucas Mendes ajudante trabalhando 8 horas cada um. Fizemos o cabeamento do quadro Q02 central e montagem de eletrocalhas. Tudo limpo e sem acidentes.' "
-                rows={3}
-                className="w-full bg-white border border-blue-100 rounded-lg p-3 text-xs text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-100 outline-none leading-relaxed font-medium placeholder-gray-400"
-              />
-              
-              <div className="flex flex-wrap justify-between items-center gap-3">
-                <div className="flex items-center gap-2">
-                  {speechSupported ? (
-                    <button
-                      type="button"
-                      onClick={handleToggleListen}
-                      disabled={isAiProcessing}
-                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-all cursor-pointer ${
-                        isListening 
-                          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-sm'
-                          : 'bg-blue-100/60 hover:bg-blue-100 text-blue-800'
-                      }`}
-                      title={isListening ? "Parar de ouvir" : "Iniciar Ditador de Diário"}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="w-4 h-4 text-white" />
-                          <span>Ouvindo... Clique para Parar</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="w-4 h-4 text-blue-600" />
-                          <span>Ditar Relato (Voz)</span>
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <span className="text-[10px] text-gray-400 font-semibold italic">
-                      Ditador não suportado neste navegador (Digite o texto corrido)
-                    </span>
-                  )}
-
-                  {aiText && (
-                    <button
-                      type="button"
-                      onClick={() => setAiText('')}
-                      disabled={isAiProcessing}
-                      className="text-xs text-gray-500 hover:text-gray-800 font-medium px-2 py-1"
-                    >
-                      Limpar
-                    </button>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAiProcess}
-                  disabled={isAiProcessing || !aiText.trim()}
-                  className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer ${
-                    isAiProcessing 
-                      ? 'bg-blue-600/50 text-white cursor-not-allowed'
-                      : !aiText.trim()
-                        ? 'bg-gray-200 text-gray-450 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  {isAiProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Processando com Gemini...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Lançar por IA ✨</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            {/* Real-time speech active status bar */}
-            {isListening && (
-              <div className="bg-red-50/50 border border-red-100/50 rounded-lg p-2 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping shrink-0" />
-                <span className="text-[10px] text-red-700 font-bold leading-none">
-                  Fale de forma clara a respeito da data, equipe, horas trabalhadas, maquinário e frentes de serviços atacadas...
-                </span>
-              </div>
-            )}
-          </div>
-
           {/* General info block */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-5">
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider pb-3 border-b border-gray-50 flex items-center gap-2">
@@ -1078,14 +928,19 @@ export function RdoFormView({
 
           {/* SSMA Occurrences Card */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5 text-red-600">
-              <ShieldAlert className="w-4 h-4" />
-              <span>Controle de Segurança (SSMA)</span>
-            </h3>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-red-600">
+                <ShieldAlert className="w-4 h-4" />
+                <span>Controle de Segurança (SSMA)</span>
+              </h3>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${hasHseIncident ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                {hasHseIncident ? 'Ocorrência Ativa' : 'Sem Ocorrências'}
+              </span>
+            </div>
 
-            <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
-              <label htmlFor="hse-switch" className="text-xs text-gray-700 font-semibold cursor-pointer">
-                Houve Incidente, Acidente ou Pitstop hoje?
+            <div className="flex items-center justify-between p-2.5 bg-gray-50/80 hover:bg-gray-100/80 rounded-lg border border-gray-150 transition-colors">
+              <label htmlFor="hse-switch" className="text-xs text-gray-700 font-semibold cursor-pointer select-none">
+                Houve Incidente, Acidente ou Ocorrência de SSMA hoje?
               </label>
               <input
                 id="hse-switch"
@@ -1097,102 +952,235 @@ export function RdoFormView({
             </div>
 
             {hasHseIncident && (
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold text-red-700">Relato Detalhado do Ocorrido *</label>
-                <textarea
-                  value={hseDetails}
-                  onChange={(e) => setHseDetails(e.target.value)}
-                  placeholder="Informar hora do incidente, equipamentos médicos envolvidos, triagem e estado geral do profissional."
-                  rows={3}
-                  className="w-full bg-red-50/35 border border-red-100 rounded-lg p-2.5 text-xs text-red-950 font-medium leading-relaxed outline-hidden focus:border-red-400"
-                />
+              <div className="space-y-4 pt-2 animate-fadeIn border-t border-red-100">
+                {/* Horário do Ocorrido */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-red-800 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-red-600" />
+                    <span>Horário do Ocorrido *</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={hseTime}
+                    onChange={(e) => setHseTime(e.target.value)}
+                    className="bg-white border border-red-200 text-xs rounded-lg p-2.5 text-gray-800 font-bold outline-hidden focus:border-red-500 focus:ring-1 focus:ring-red-300 w-full sm:w-48 shadow-2xs"
+                  />
+                </div>
+
+                {/* Descrição do Ocorrido */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-red-800">
+                    Descrição do Ocorrido *
+                  </label>
+                  <textarea
+                    value={hseDescription}
+                    onChange={(e) => setHseDescription(e.target.value)}
+                    placeholder="Descreva detalhadamente o fato, causas preliminares, condições do local e gravidade..."
+                    rows={3}
+                    className="w-full bg-red-50/35 border border-red-200 rounded-lg p-2.5 text-xs text-red-950 font-medium leading-relaxed outline-hidden focus:border-red-400 focus:ring-1 focus:ring-red-200 shadow-2xs"
+                  />
+                </div>
+
+                {/* Envolvidos do Ocorrido */}
+                <div className="flex flex-col gap-1.5 bg-red-50/20 p-3.5 rounded-xl border border-red-100">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                    <label className="text-[11px] font-bold text-red-900 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-red-600" />
+                      <span>Envolvidos do Ocorrido</span>
+                    </label>
+                    <span className="text-[10px] text-gray-500">
+                      {currentUser.role === 'admin' || currentUser.role === 'manager' 
+                        ? 'Acesso Geral: Listando colaboradores de todas as empresas' 
+                        : 'Filtrado: Pessoas vinculadas à sua empresa'}
+                    </span>
+                  </div>
+
+                  {/* Selected Involved Tags */}
+                  {hseInvolved.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 py-1">
+                      {hseInvolved.map((person, pIdx) => (
+                        <span 
+                          key={pIdx}
+                          className="inline-flex items-center gap-1.5 bg-red-100 border border-red-200 text-red-800 text-xs font-semibold px-2.5 py-1 rounded-full animate-fadeIn"
+                        >
+                          <span>{person}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveInvolvedPerson(person)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-200/60 rounded-full p-0.5 cursor-pointer transition-colors"
+                            title="Remover envolvido"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Interactive Selector Dropdown & Quick Add */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1">
+                    <div className="sm:col-span-8">
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleAddInvolvedPerson(e.target.value);
+                            e.target.value = '';
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full bg-white border border-gray-300 text-xs rounded-lg p-2 text-gray-700 outline-hidden focus:border-red-400 font-medium"
+                      >
+                        <option value="" disabled>-- Selecione um colaborador vinculado --</option>
+                        {availablePeopleForHse.map((p) => {
+                          const isAlreadyAdded = hseInvolved.includes(p.name);
+                          return (
+                            <option key={p.id} value={p.name} disabled={isAlreadyAdded}>
+                              {p.name} - {p.subtitle} {isAlreadyAdded ? '(Já adicionado)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-4 flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Ou outro nome..."
+                        value={customInvolvedInput}
+                        onChange={(e) => setCustomInvolvedInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddInvolvedPerson(customInvolvedInput);
+                          }
+                        }}
+                        className="bg-white border border-gray-300 text-xs rounded-lg p-2 text-gray-700 outline-hidden focus:border-red-400 grow min-w-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddInvolvedPerson(customInvolvedInput)}
+                        className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors shrink-0 cursor-pointer"
+                        title="Adicionar envolvido"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ações Tomadas */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-red-800">
+                    Ações Tomadas / Medidas Preventivas e Corretivas *
+                  </label>
+                  <textarea
+                    value={hseActions}
+                    onChange={(e) => setHseActions(e.target.value)}
+                    placeholder="Primeiros socorros prestados, isolamento de área, emissão de CAT, parada de segurança (pitstop), etc..."
+                    rows={2}
+                    className="w-full bg-red-50/35 border border-red-200 rounded-lg p-2.5 text-xs text-red-950 font-medium leading-relaxed outline-hidden focus:border-red-400 focus:ring-1 focus:ring-red-200 shadow-2xs"
+                  />
+                </div>
               </div>
             )}
           </div>
 
           {/* Interferences & Impedimentos Card */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-              Interferências & Paralisações
+            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 text-blue-500" />
+              <span>Interferências & Paralisações</span>
             </h3>
 
             <div className="space-y-3.5">
+              {/* Campo para Área */}
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-semibold text-gray-500">Impedimentos / Paralisações temporárias</label>
-                <textarea
-                  value={stoppages}
-                  onChange={(e) => setStoppages(e.target.value)}
-                  placeholder="Ex: chuva por 2 horas fora do galpão principal..."
-                  rows={2}
-                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500"
+                <label className="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                  <span>Área / Local Afetado</span>
+                </label>
+                <input
+                  type="text"
+                  value={stoppageArea}
+                  onChange={(e) => setStoppageArea(e.target.value)}
+                  placeholder="Ex: Área de Britagem / Linha 02 / Galpão 3 / Setor Externo..."
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-800 font-semibold leading-relaxed outline-hidden focus:border-blue-500 focus:bg-white"
                 />
               </div>
 
+              {/* Campo para Interferência Interna */}
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-semibold text-gray-500">Interferências externas</label>
+                <label className="text-[11px] font-semibold text-gray-600">
+                  Interferência Interna
+                </label>
+                <textarea
+                  value={internalInterferences}
+                  onChange={(e) => setInternalInterferences(e.target.value)}
+                  placeholder="Ex: Manutenção corretiva de equipamento próprio, falta de peças internas, redistribuição de equipe..."
+                  rows={2}
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500 focus:bg-white"
+                />
+              </div>
+
+              {/* Interferências Externas */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-gray-600">
+                  Interferências Externas
+                </label>
                 <textarea
                   value={interferences}
                   onChange={(e) => setInterferences(e.target.value)}
-                  placeholder="Ex: atraso de entrega técnica pela contratante..."
+                  placeholder="Ex: Atraso de entrega de material pela contratante, falta de liberação de PT pelo fiscal..."
                   rows={2}
-                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500"
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500 focus:bg-white"
                 />
               </div>
 
+              {/* Impedimentos / Paralisações Temporárias */}
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-semibold text-gray-500">Observações Gerais</label>
+                <label className="text-[11px] font-semibold text-gray-600">
+                  Impedimentos / Paralisações Temporárias
+                </label>
+                <textarea
+                  value={stoppages}
+                  onChange={(e) => setStoppages(e.target.value)}
+                  placeholder="Ex: Chuva torrencial por 2 horas paralisando atividades externas..."
+                  rows={2}
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500 focus:bg-white"
+                />
+              </div>
+
+              {/* Observações Gerais */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-gray-600">
+                  Observações Gerais
+                </label>
                 <textarea
                   value={additionalRemarks}
                   onChange={(e) => setAdditionalRemarks(e.target.value)}
                   placeholder="Qualquer outro detalhe técnico relevante..."
                   rows={2}
-                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500"
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-700 leading-relaxed outline-hidden focus:border-blue-500 focus:bg-white"
                 />
               </div>
             </div>
           </div>
 
-          {/* Attachments / Upload Box */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4">
+          {/* Registro Fotográfico */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-3">
             <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
               <Paperclip className="w-4 h-4 text-gray-400" />
-              <span>Anexos do Diário (Relatório Fotográfico / PT)</span>
+              <span>Registro Fotográfico</span>
             </h3>
 
-            <form onSubmit={handleAddAttachment} className="flex gap-2">
-              <input
-                type="text"
-                value={newAttachmentName}
-                onChange={(e) => setNewAttachmentName(e.target.value)}
-                placeholder="Ex: foto_solda_elevada_05.jpg"
-                className="bg-gray-50 border border-gray-200 rounded-md p-1.5 grow text-xs outline-hidden focus:border-blue-500"
-              />
-              <button 
-                type="submit"
-                className="bg-slate-900 text-white rounded-md px-3 text-xs font-semibold hover:bg-slate-800 transition-colors shrink-0"
-              >
-                Anexar
-              </button>
-            </form>
-
-            {attachments.length > 0 ? (
-              <div className="space-y-1.5 mt-2">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-xs p-2 bg-slate-50 border border-slate-100 rounded-md">
-                    <span className="font-mono text-gray-600 truncate max-w-[200px]">{att}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttachment(idx)}
-                      className="text-red-500 font-bold hover:bg-red-55 px-1.5 py-0.5 rounded"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 flex items-start gap-3">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-bold block text-amber-900">Diretriz de Registro Fotográfico</span>
+                <p className="leading-relaxed text-amber-800 font-medium">
+                  As fotos deverão ser enviadas via e-mail caso tenha autorização formal do Cliente.
+                </p>
               </div>
-            ) : (
-              <p className="text-[11px] text-gray-400 text-center py-2">Sem anexos por enquanto. Anexar evidência fotográfica é extremamente recomendado para agilizar aprovação.</p>
-            )}
+            </div>
           </div>
 
         </div>

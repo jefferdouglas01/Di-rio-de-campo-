@@ -82,9 +82,15 @@ export interface RdoRecord {
   workers: WorkerEntry[];
   equipments: EquipmentEntry[];
   hasHseIncident: boolean;
-  hseDetails?: string;
-  interferences?: string;
-  stoppages?: string;
+  hseTime?: string; // Horário do ocorrido
+  hseDescription?: string; // Descrição do ocorrido
+  hseInvolved?: string[]; // Envolvidos do ocorrido
+  hseActions?: string; // Ações tomadas
+  hseDetails?: string; // Compatibilidade com registros anteriores
+  stoppageArea?: string; // Área da interferência / paralisação
+  internalInterferences?: string; // Interferência interna
+  interferences?: string; // Interferências externas
+  stoppages?: string; // Impedimentos / paralisações
   additionalRemarks?: string;
   attachments: string[]; // List of mock file names
   status: RdoStatus;
