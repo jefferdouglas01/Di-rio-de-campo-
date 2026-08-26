@@ -870,12 +870,8 @@ export function RdoDetailView({
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs space-y-4 print:hidden">
               <h3 className="font-sans font-semibold text-gray-900 text-base flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
-                <span>Avaliação e Auditoria Fiscal</span>
+                <span>Avaliação do RDO</span>
               </h3>
-              
-              <p className="text-xs text-gray-500 leading-relaxed font-semibold">
-                Análise de conformidade do faturamento de h/h de hoje. Como fiscal gerenciador, você pode deferir, indeferir ou remeter para readequação no quadro correspondente.
-              </p>
 
               {!showApprovalBox ? (
                 <div className="grid grid-cols-1 gap-2.5 pt-2">
