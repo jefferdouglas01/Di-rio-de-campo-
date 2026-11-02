@@ -22,7 +22,8 @@ import {
   Edit2,
   FileText,
   UserCheck,
-  MapPin
+  MapPin,
+  Trash2
 } from 'lucide-react';
 import { RdoRecord, Company, Contract, User, AuditLog, WorkerEntry, ChangeLogItem, RdoStatus } from '../types';
 import { getRdoSequentialCode } from '../utils';
@@ -35,6 +36,7 @@ interface RdoDetailViewProps {
   currentUser: User;
   auditLogs: AuditLog[];
   onBack: () => void;
+  onDeleteRdo?: (rdoId: string) => void;
   onUpdateStatus: (
     rdoId: string, 
     newStatus: RdoStatus, 
@@ -58,6 +60,7 @@ export function RdoDetailView({
   currentUser,
   auditLogs,
   onBack,
+  onDeleteRdo,
   onUpdateStatus,
   onAdjustWorkerHours
 }: RdoDetailViewProps) {
@@ -249,6 +252,30 @@ export function RdoDetailView({
             <FileText className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
             <span>Imprimir RDO (PDF)</span>
           </button>
+
+          {onDeleteRdo && (() => {
+            const isApprovedOrFinalStatus = rdo.status === 'Aprovado' || rdo.status === 'Medido' || rdo.status === 'Bloqueado para medição';
+            let canDelete = false;
+            if (currentUser.role === 'admin' || currentUser.role === 'manager') {
+              canDelete = true;
+            } else if (currentUser.role === 'contractor') {
+              if (!isApprovedOrFinalStatus) {
+                canDelete = true;
+              }
+            }
+            return canDelete && (
+              <button
+                onClick={() => {
+                  onDeleteRdo(rdo.id);
+                }}
+                className="flex items-center gap-1.5 border border-red-200 hover:bg-red-50 text-red-600 hover:text-red-700 text-xs font-bold px-3.5 py-1.5 rounded-full shadow-xs transition-all cursor-pointer print:hidden"
+                title="Excluir este boletim RDO"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                <span>Excluir RDO</span>
+              </button>
+            );
+          })()}
 
           {rdo.status === 'Medido' && (
             <span className="text-[10px] font-bold px-2 px-3 py-1.5 rounded-full bg-purple-100 text-purple-700">

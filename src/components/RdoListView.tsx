@@ -381,16 +381,16 @@ export function RdoListView({
                           </button>
                         )}
 
-                        {/* Delete: Contractor can delete draft/correction, but once approved or if user is admin/manager they have authorized delete capabilities */}
+                        {/* Delete: Contractor can delete draft/correction/submitted, but once approved or if user is admin/manager they have authorized delete capabilities */}
                         {(() => {
                           const isApprovedOrFinalStatus = rdo.status === 'Aprovado' || rdo.status === 'Medido' || rdo.status === 'Bloqueado para medição';
                           let canDelete = false;
 
                           if (currentUser.role === 'admin' || currentUser.role === 'manager') {
                             canDelete = true;
-                          } else if (currentUser.role === 'contractor' && currentUser.companyId === rdo.companyId) {
+                          } else if (currentUser.role === 'contractor') {
                             if (!isApprovedOrFinalStatus) {
-                              canDelete = rdo.status === 'Rascunho' || rdo.status === 'Correção solicitada';
+                              canDelete = true;
                             }
                           }
 
@@ -398,7 +398,7 @@ export function RdoListView({
                             <button
                               onClick={() => onDeleteRdo(rdo.id)}
                               className="p-1.5 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-100 rounded-lg transition-colors cursor-pointer"
-                              title="Excluir Diário"
+                              title="Excluir Diário RDO"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

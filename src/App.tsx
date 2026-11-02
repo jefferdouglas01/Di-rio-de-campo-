@@ -33,6 +33,12 @@ enum OperationType {
   WRITE = 'write',
 }
 
+function notifyApp(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message, type } }));
+  }
+}
+
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const message = error instanceof Error ? error.message : String(error);
   const errInfo = {
@@ -42,14 +48,13 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   
-  // Exibir feedback visual para o usuário sobre falhas no banco
-  let userAlert = `Erro na operação de banco de dados (${operationType}).`;
+  let userAlert = `Erro na operação (${operationType}).`;
   if (message.includes('permission') || message.includes('Permissions')) {
-    userAlert += '\n\nPermissão insuficiente ou regras de segurança ativas impediram esta ação.';
+    userAlert += ' Permissão insuficiente no banco de dados.';
   } else {
-    userAlert += `\n\nDetalhes: ${message}`;
+    userAlert += ` Detalhes: ${message}`;
   }
-  alert(userAlert);
+  notifyApp(userAlert, 'error');
 }
 
 function cleanObject<T>(obj: T): T {
@@ -145,6 +150,30 @@ export default function App() {
     return null;
   });
 
+  // Toast Notification System
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+  } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(prev => (prev?.message === message ? null : prev));
+    }, 4500);
+  };
+
+  useEffect(() => {
+    const handleToastEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ message: string; type: 'success' | 'error' | 'info' }>;
+      if (custom.detail) {
+        showToast(custom.detail.message, custom.detail.type);
+      }
+    };
+    window.addEventListener('app-toast', handleToastEvent);
+    return () => window.removeEventListener('app-toast', handleToastEvent);
+  }, []);
+
   // Custom Confirmation Dialog State using React State to bypass sandboxed iframe restrictions
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -182,13 +211,13 @@ export default function App() {
     // 1. Sync Companies
     const unsubCompanies = onSnapshot(collection(db, 'companies'), (snapshot) => {
       if (snapshot.empty) {
-        INITIAL_COMPANIES.forEach((comp) => {
-          setDoc(doc(db, 'companies', comp.id), comp).catch(e => console.error(e));
-        });
+        setCompanies([]);
+        localStorage.setItem('rdo_db_companies', JSON.stringify([]));
       } else {
         const comps: Company[] = [];
-        snapshot.forEach((doc) => {
-          comps.push(doc.data() as Company);
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as Company;
+          comps.push({ ...data, id: docSnap.id || data.id });
         });
         setCompanies(comps);
         localStorage.setItem('rdo_db_companies', JSON.stringify(comps));
@@ -200,13 +229,13 @@ export default function App() {
     // 2. Sync Contracts
     const unsubContracts = onSnapshot(collection(db, 'contracts'), (snapshot) => {
       if (snapshot.empty) {
-        INITIAL_CONTRACTS.forEach((cnt) => {
-          setDoc(doc(db, 'contracts', cnt.id), cnt).catch(e => console.error(e));
-        });
+        setContracts([]);
+        localStorage.setItem('rdo_db_contracts', JSON.stringify([]));
       } else {
         const cnts: Contract[] = [];
-        snapshot.forEach((doc) => {
-          cnts.push(doc.data() as Contract);
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as Contract;
+          cnts.push({ ...data, id: docSnap.id || data.id });
         });
         setContracts(cnts);
         localStorage.setItem('rdo_db_contracts', JSON.stringify(cnts));
@@ -221,11 +250,27 @@ export default function App() {
         INITIAL_USERS.forEach((usr) => {
           setDoc(doc(db, 'users', usr.id), usr).catch(e => console.error(e));
         });
+        setUsersList(INITIAL_USERS);
+        localStorage.setItem('rdo_db_users', JSON.stringify(INITIAL_USERS));
       } else {
         const usrs: User[] = [];
-        snapshot.forEach((doc) => {
-          usrs.push(doc.data() as User);
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as User;
+          usrs.push({ ...data, id: docSnap.id || data.id });
         });
+
+        // Ensure bootstrapped admin users always exist
+        for (const initU of INITIAL_USERS) {
+          const idx = usrs.findIndex(u => u.email.trim().toLowerCase() === initU.email.trim().toLowerCase());
+          if (idx === -1) {
+            usrs.push(initU);
+            setDoc(doc(db, 'users', initU.id), initU).catch(console.error);
+          } else if (initU.role === 'admin' && usrs[idx].role !== 'admin') {
+            usrs[idx] = { ...usrs[idx], role: 'admin' };
+            setDoc(doc(db, 'users', usrs[idx].id), usrs[idx]).catch(console.error);
+          }
+        }
+
         setUsersList(usrs);
         localStorage.setItem('rdo_db_users', JSON.stringify(usrs));
 
@@ -246,13 +291,13 @@ export default function App() {
     // 4. Sync RDOS
     const unsubRdos = onSnapshot(collection(db, 'rdos'), (snapshot) => {
       if (snapshot.empty) {
-        INITIAL_RDOS.forEach((rdo) => {
-          setDoc(doc(db, 'rdos', rdo.id), rdo).catch(e => console.error(e));
-        });
+        setRdos([]);
+        localStorage.setItem('rdo_db_rdos', JSON.stringify([]));
       } else {
         const rList: RdoRecord[] = [];
-        snapshot.forEach((doc) => {
-          rList.push(doc.data() as RdoRecord);
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as RdoRecord;
+          rList.push({ ...data, id: docSnap.id || data.id });
         });
         rList.sort((a, b) => b.date.localeCompare(a.date));
         setRdos(rList);
@@ -265,13 +310,13 @@ export default function App() {
     // 5. Sync Audits
     const unsubAudits = onSnapshot(collection(db, 'audits'), (snapshot) => {
       if (snapshot.empty) {
-        INITIAL_AUDIT_LOGS.forEach((aud) => {
-          setDoc(doc(db, 'audits', aud.id), aud).catch(e => console.error(e));
-        });
+        setAuditLogs([]);
+        localStorage.setItem('rdo_db_audits', JSON.stringify([]));
       } else {
         const auds: AuditLog[] = [];
-        snapshot.forEach((doc) => {
-          auds.push(doc.data() as AuditLog);
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as AuditLog;
+          auds.push({ ...data, id: docSnap.id || data.id });
         });
         auds.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
         setAuditLogs(auds);
@@ -293,7 +338,7 @@ export default function App() {
   // Central Database re-seeding mechanism (restricted to super admin only)
   const handleResetSystem = () => {
     if (currentUser?.role !== 'admin') {
-      alert('Acesso negado: apenas o Administrador Geral possui permissão para limpar o banco central.');
+      showToast('Acesso negado: apenas o Administrador Geral possui permissão para limpar o banco central.', 'error');
       return;
     }
     triggerConfirm(
@@ -334,7 +379,7 @@ export default function App() {
           setEditingRdoId(null);
           setIsCreatingNewRdo(false);
 
-          alert('Banco central de dados sincronizado e resetado com sucesso para todos os dispositivos!');
+          showToast('Banco central de dados sincronizado e resetado com sucesso!', 'success');
         } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, 'reset-database');
         }
@@ -402,8 +447,15 @@ export default function App() {
       'Deseja excluir definitivamente este boletim RDO? Esta ação não possui retorno.',
       async () => {
         try {
+          setRdos(prev => {
+            const next = prev.filter(r => r.id !== rdoId);
+            localStorage.setItem('rdo_db_rdos', JSON.stringify(next));
+            return next;
+          });
+          if (viewingRdoId === rdoId) setViewingRdoId(null);
+          if (editingRdoId === rdoId) setEditingRdoId(null);
           await deleteDoc(doc(db, 'rdos', rdoId));
-          alert('RDO excluído com sucesso!');
+          showToast('Boletim RDO excluído com sucesso!', 'success');
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `rdos/${rdoId}`);
         }
@@ -510,7 +562,13 @@ export default function App() {
   const handleAddCompany = async (comp: Company) => {
     try {
       const cleaned = cleanObject(comp);
+      setCompanies(prev => {
+        const next = [...prev.filter(c => c.id !== cleaned.id), cleaned];
+        localStorage.setItem('rdo_db_companies', JSON.stringify(next));
+        return next;
+      });
       await setDoc(doc(db, 'companies', cleaned.id), cleaned);
+      showToast('Empresa cadastrada com sucesso!', 'success');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `companies/${comp.id}`);
     }
@@ -519,25 +577,88 @@ export default function App() {
   const handleUpdateCompany = async (updatedCompany: Company) => {
     try {
       const cleaned = cleanObject(updatedCompany);
+      setCompanies(prev => {
+        const next = prev.map(c => c.id === cleaned.id ? cleaned : c);
+        localStorage.setItem('rdo_db_companies', JSON.stringify(next));
+        return next;
+      });
       await setDoc(doc(db, 'companies', cleaned.id), cleaned);
+      showToast('Empresa atualizada com sucesso!', 'success');
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `companies/${updatedCompany.id}`);
     }
   };
 
   const handleDeleteCompany = (id: string) => {
-    const linked = contracts.some(c => c.companyId === id);
-    if (linked) {
-      alert('Erro: Esta empresa possui contratos ativos vinculados e não pode ser removida antes de desvincular o contrato.');
-      return;
-    }
+    const comp = companies.find(c => c.id === id);
+    const linkedContracts = contracts.filter(c => c.companyId === id);
+    const contractIds = new Set(linkedContracts.map(c => c.id));
+    const linkedRdos = rdos.filter(r => r.companyId === id || contractIds.has(r.contractId));
+    const linkedUsers = usersList.filter(u => u.companyId === id);
+
+    const hasLinked = linkedContracts.length > 0 || linkedRdos.length > 0;
+    const title = hasLinked ? 'Excluir Empresa e Vínculos?' : 'Excluir Empresa?';
+    const message = hasLinked
+      ? `A empresa "${comp?.name || id}" possui ${linkedContracts.length} contrato(s) e ${linkedRdos.length} boletim(ns) RDO vinculado(s). Deseja realmente excluir esta empresa e remover em cascata todos os seus contratos e boletins associados? Esta ação é definitiva.`
+      : `Deseja realmente excluir o cadastro da empresa "${comp?.name || id}"? Esta ação é irreversível.`;
+
     triggerConfirm(
-      'Excluir Empresa?',
-      'Deseja realmente excluir esta empresa cadastrada? Esta ação é irreversível.',
+      title,
+      message,
       async () => {
         try {
-          await deleteDoc(doc(db, 'companies', id));
-          alert('Empresa removida com sucesso!');
+          // 1. Instantly update local states & localStorage
+          setCompanies(prev => {
+            const next = prev.filter(c => c.id !== id);
+            localStorage.setItem('rdo_db_companies', JSON.stringify(next));
+            return next;
+          });
+
+          if (linkedContracts.length > 0) {
+            setContracts(prev => {
+              const next = prev.filter(c => c.companyId !== id);
+              localStorage.setItem('rdo_db_contracts', JSON.stringify(next));
+              return next;
+            });
+          }
+
+          if (linkedRdos.length > 0) {
+            setRdos(prev => {
+              const next = prev.filter(r => r.companyId !== id && !contractIds.has(r.contractId));
+              localStorage.setItem('rdo_db_rdos', JSON.stringify(next));
+              return next;
+            });
+            if (viewingRdoId && linkedRdos.some(r => r.id === viewingRdoId)) setViewingRdoId(null);
+            if (editingRdoId && linkedRdos.some(r => r.id === editingRdoId)) setEditingRdoId(null);
+          }
+
+          if (linkedUsers.length > 0) {
+            setUsersList(prev => {
+              const next = prev.map(u => u.companyId === id ? { ...u, companyId: undefined } : u);
+              localStorage.setItem('rdo_db_users', JSON.stringify(next));
+              return next;
+            });
+          }
+
+          // 2. Persist deletion in Firestore
+          const ops: Promise<any>[] = [deleteDoc(doc(db, 'companies', id))];
+          for (const cnt of linkedContracts) {
+            ops.push(deleteDoc(doc(db, 'contracts', cnt.id)));
+          }
+          for (const rdo of linkedRdos) {
+            ops.push(deleteDoc(doc(db, 'rdos', rdo.id)));
+          }
+          for (const usr of linkedUsers) {
+            ops.push(setDoc(doc(db, 'users', usr.id), cleanObject({ ...usr, companyId: undefined })));
+          }
+          await Promise.all(ops);
+
+          showToast(
+            hasLinked 
+              ? `Empresa e seus ${linkedContracts.length} contrato(s) associados foram excluídos com sucesso!`
+              : 'Empresa removida com sucesso!',
+            'success'
+          );
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `companies/${id}`);
         }
@@ -548,7 +669,13 @@ export default function App() {
   const handleAddContract = async (cnt: Contract) => {
     try {
       const cleaned = cleanObject(cnt);
+      setContracts(prev => {
+        const next = [...prev.filter(c => c.id !== cleaned.id), cleaned];
+        localStorage.setItem('rdo_db_contracts', JSON.stringify(next));
+        return next;
+      });
       await setDoc(doc(db, 'contracts', cleaned.id), cleaned);
+      showToast('Contrato vinculado com sucesso!', 'success');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `contracts/${cnt.id}`);
     }
@@ -557,25 +684,63 @@ export default function App() {
   const handleUpdateContract = async (updatedContract: Contract) => {
     try {
       const cleaned = cleanObject(updatedContract);
+      setContracts(prev => {
+        const next = prev.map(c => c.id === cleaned.id ? cleaned : c);
+        localStorage.setItem('rdo_db_contracts', JSON.stringify(next));
+        return next;
+      });
       await setDoc(doc(db, 'contracts', cleaned.id), cleaned);
+      showToast('Contrato atualizado com sucesso!', 'success');
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `contracts/${updatedContract.id}`);
     }
   };
 
   const handleDeleteContract = (id: string) => {
-    const linkedRdo = rdos.some(r => r.contractId === id);
-    if (linkedRdo) {
-      alert('Erro: Este contrato possui boletins RDO de campo já cadastrados e históricos arquivados e não pode ser excluído.');
-      return;
-    }
+    const contract = contracts.find(c => c.id === id);
+    const linkedRdos = rdos.filter(r => r.contractId === id);
+
+    const hasLinked = linkedRdos.length > 0;
+    const title = hasLinked ? 'Excluir Contrato e RDOs Vinculados?' : 'Excluir Contrato?';
+    const message = hasLinked
+      ? `Atenção: O contrato "${contract?.contractNumber || id}" possui ${linkedRdos.length} boletim(ns) RDO vinculado(s). Deseja realmente excluir este contrato e todos os seus ${linkedRdos.length} boletins RDO associados? Esta ação é irreversível.`
+      : `Deseja realmente excluir o contrato "${contract?.contractNumber || id}"? Esta ação é irreversível.`;
+
     triggerConfirm(
-      'Excluir Contrato?',
-      'Deseja realmente excluir este contrato cadastrado? Esta ação é irreversível.',
+      title,
+      message,
       async () => {
         try {
-          await deleteDoc(doc(db, 'contracts', id));
-          alert('Contrato excluído com sucesso!');
+          // 1. Instantly update local state and localStorage
+          setContracts(prev => {
+            const next = prev.filter(c => c.id !== id);
+            localStorage.setItem('rdo_db_contracts', JSON.stringify(next));
+            return next;
+          });
+
+          if (hasLinked) {
+            setRdos(prev => {
+              const next = prev.filter(r => r.contractId !== id);
+              localStorage.setItem('rdo_db_rdos', JSON.stringify(next));
+              return next;
+            });
+            if (viewingRdoId && linkedRdos.some(r => r.id === viewingRdoId)) setViewingRdoId(null);
+            if (editingRdoId && linkedRdos.some(r => r.id === editingRdoId)) setEditingRdoId(null);
+          }
+
+          // 2. Persist deletion in Firestore
+          const ops: Promise<any>[] = [deleteDoc(doc(db, 'contracts', id))];
+          for (const r of linkedRdos) {
+            ops.push(deleteDoc(doc(db, 'rdos', r.id)));
+          }
+          await Promise.all(ops);
+
+          showToast(
+            hasLinked
+              ? `Contrato e ${linkedRdos.length} boletim(ns) RDO vinculados foram excluídos com sucesso!`
+              : 'Contrato excluído com sucesso!',
+            'success'
+          );
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `contracts/${id}`);
         }
@@ -586,7 +751,13 @@ export default function App() {
   const handleAddUser = async (usr: User) => {
     try {
       const cleaned = cleanObject(usr);
+      setUsersList(prev => {
+        const next = [...prev.filter(u => u.id !== cleaned.id), cleaned];
+        localStorage.setItem('rdo_db_users', JSON.stringify(next));
+        return next;
+      });
       await setDoc(doc(db, 'users', cleaned.id), cleaned);
+      showToast('Usuário cadastrado com sucesso!', 'success');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `users/${usr.id}`);
     }
@@ -595,23 +766,39 @@ export default function App() {
   const handleUpdateUser = async (updatedUser: User) => {
     try {
       const cleaned = cleanObject(updatedUser);
-      await setDoc(doc(db, 'users', cleaned.id), cleaned);
+      setUsersList(prev => {
+        const next = prev.map(u => u.id === cleaned.id ? cleaned : u);
+        localStorage.setItem('rdo_db_users', JSON.stringify(next));
+        return next;
+      });
       if (currentUser && currentUser.id === cleaned.id) {
         setCurrentUser(cleaned);
       }
+      await setDoc(doc(db, 'users', cleaned.id), cleaned);
+      showToast('Usuário atualizado com sucesso!', 'success');
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `users/${updatedUser.id}`);
     }
   };
 
   const handleDeleteUser = (id: string) => {
+    if (currentUser && currentUser.id === id) {
+      showToast('Você não pode excluir sua própria conta enquanto estiver logado no sistema.', 'error');
+      return;
+    }
+    const usr = usersList.find(u => u.id === id);
     triggerConfirm(
       'Excluir Usuário?',
-      'Deseja realmente remover o acesso de usuário deste profissional?',
+      `Deseja realmente remover o acesso de "${usr?.name || id}"? Esta ação é irreversível.`,
       async () => {
         try {
+          setUsersList(prev => {
+            const next = prev.filter(u => u.id !== id);
+            localStorage.setItem('rdo_db_users', JSON.stringify(next));
+            return next;
+          });
           await deleteDoc(doc(db, 'users', id));
-          alert('Usuário removido do sistema!');
+          showToast('Usuário removido do sistema com sucesso!', 'success');
         } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, `users/${id}`);
         }
@@ -945,6 +1132,7 @@ export default function App() {
                 currentUser={currentUser!}
                 auditLogs={filteredAuditLogs}
                 onBack={() => setViewingRdoId(null)}
+                onDeleteRdo={handleDeleteRdoRecord}
                 onUpdateStatus={handleUpdateStatus}
                 onAdjustWorkerHours={handleAdjustWorkerHours}
               />
@@ -1081,6 +1269,29 @@ export default function App() {
                 Confirmar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification Container */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[1000] max-w-sm sm:max-w-md animate-fadeIn transition-all pointer-events-auto">
+          <div className={`flex items-start gap-3 p-3.5 rounded-xl shadow-2xl border text-xs font-semibold backdrop-blur-md ${
+            toast.type === 'success' 
+              ? 'bg-slate-900/95 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
+              : toast.type === 'error'
+              ? 'bg-slate-900/95 border-red-500/40 text-red-350 ring-1 ring-red-500/20'
+              : 'bg-slate-900/95 border-blue-500/40 text-blue-300 ring-1 ring-blue-500/20'
+          }`}>
+            <div className="grow leading-relaxed pt-0.5">{toast.message}</div>
+            <button 
+              type="button"
+              onClick={() => setToast(null)}
+              className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded-md hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              title="Fechar notificação"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}

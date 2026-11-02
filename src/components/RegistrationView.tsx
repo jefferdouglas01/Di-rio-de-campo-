@@ -85,6 +85,7 @@ export function RegistrationView({
   // Editing User States for administrators to approve/assign roles/companies
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingUserName, setEditingUserName] = useState<string>('');
+  const [editingUserEmail, setEditingUserEmail] = useState<string>('');
   const [editingUserRole, setEditingUserRole] = useState<UserRole>('pending');
   const [editingUserCompanyId, setEditingUserCompanyId] = useState<string | undefined>('');
   const [editingUserPassword, setEditingUserPassword] = useState<string>('');
@@ -92,22 +93,43 @@ export function RegistrationView({
   const handleStartUserEdit = (usr: User) => {
     setEditingUserId(usr.id);
     setEditingUserName(usr.name);
+    setEditingUserEmail(usr.email);
     setEditingUserRole(usr.role);
     setEditingUserCompanyId(usr.companyId || '');
     setEditingUserPassword(usr.password || '123456');
   };
 
+function notify(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message, type } }));
+  }
+}
+
   const handleSaveUserEdit = () => {
     if (!editingUserId || !editingUserName.trim()) {
-      alert('Por favor, informe o nome do colaborador corporativo.');
+      notify('Por favor, informe o nome do colaborador corporativo.', 'error');
       return;
     }
+    if (!editingUserEmail.trim() || !editingUserEmail.includes('@')) {
+      notify('Por favor, informe um e-mail válido para o colaborador.', 'error');
+      return;
+    }
+    const cleanEmail = editingUserEmail.trim().toLowerCase();
+    const emailConflict = usersList.some(
+      u => u.id !== editingUserId && u.email.trim().toLowerCase() === cleanEmail
+    );
+    if (emailConflict) {
+      notify('Atenção: Já existe outro usuário cadastrado com este e-mail.', 'error');
+      return;
+    }
+
     const originalUser = usersList.find(u => u.id === editingUserId);
     if (!originalUser) return;
 
     const updatedUser: User = {
       ...originalUser,
       name: editingUserName.trim(),
+      email: cleanEmail,
       role: editingUserRole,
       companyId: editingUserRole === 'contractor' ? (editingUserCompanyId || undefined) : undefined,
       password: editingUserPassword || '123456'
@@ -115,7 +137,6 @@ export function RegistrationView({
 
     onUpdateUser(updatedUser);
     setEditingUserId(null);
-    alert('Cadastro do colaborador e permissões de acesso atualizados com sucesso!');
   };
 
   // Editing Company States for administrators
@@ -137,7 +158,7 @@ export function RegistrationView({
 
   const handleSaveCompanyEdit = () => {
     if (!editingCompanyId || !editingCompanyName.trim() || !editingCompanyCnpj.trim()) {
-      alert('Por favor, preencha o nome e o CNPJ da empresa.');
+      notify('Por favor, preencha o nome e o CNPJ da empresa.', 'error');
       return;
     }
     const originalCompany = companies.find(c => c.id === editingCompanyId);
@@ -154,7 +175,6 @@ export function RegistrationView({
 
     onUpdateCompany(updatedCompany);
     setEditingCompanyId(null);
-    alert('Empresa atualizada com sucesso!');
   };
 
   // Editing Contract States for administrators
@@ -188,7 +208,7 @@ export function RegistrationView({
 
   const handleSaveContractEdit = () => {
     if (!editingContractId || !editingContractNumber.trim() || !editingContractClient.trim() || !editingContractCompanyId) {
-      alert('Por favor, informe o número do contrato, cliente e empresa terceirizada vinculada.');
+      notify('Por favor, informe o número do contrato, cliente e empresa parceira vinculada.', 'error');
       return;
     }
     const originalContract = contracts.find(c => c.id === editingContractId);
@@ -211,23 +231,22 @@ export function RegistrationView({
 
     onUpdateContract(updatedContract);
     setEditingContractId(null);
-    alert('Contrato atualizado com sucesso!');
   };
 
   // Creation dispatches
   const handleCreateCompany = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!compName || !compCnpj || !compResp) {
-      alert('Preencha os campos obrigatórios da empresa.');
+    if (!compName.trim() || !compCnpj.trim() || !compResp.trim()) {
+      notify('Preencha os campos obrigatórios da empresa.', 'error');
       return;
     }
     const payload: Company = {
       id: `comp-${Date.now()}`,
-      name: compName,
-      cnpj: compCnpj,
-      responsibleName: compResp,
-      email: compEmail || 'contato@empresa.com',
-      phone: compPhone || '(11) 99999-8888',
+      name: compName.trim(),
+      cnpj: compCnpj.trim(),
+      responsibleName: compResp.trim(),
+      email: compEmail.trim() || 'contato@empresa.com',
+      phone: compPhone.trim() || '(11) 99999-8888',
       active: true
     };
     onAddCompany(payload);
@@ -238,27 +257,26 @@ export function RegistrationView({
     setCompResp('');
     setCompEmail('');
     setCompPhone('');
-    alert('Empresa cadastrada com sucesso!');
   };
 
   const handleCreateContract = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cntNum || !cntClient || !cntCompId || !cntScope) {
-      alert('Preencha os campos obrigatórios do contrato.');
+    if (!cntNum.trim() || !cntClient.trim() || !cntCompId || !cntScope.trim()) {
+      notify('Preencha os campos obrigatórios do contrato.', 'error');
       return;
     }
     const payload: Contract = {
       id: `cnt-${Date.now()}`,
-      contractNumber: cntNum,
-      client: cntClient,
+      contractNumber: cntNum.trim(),
+      client: cntClient.trim(),
       companyId: cntCompId,
-      scope: cntScope,
+      scope: cntScope.trim(),
       startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 6 months end
+      endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       measurementRegime: cntRegime,
-      rateRule: cntRate || 'Faturamento por H/H aprovado sob diário',
-      costCenter: cntCc || 'CC-OBRA-GERAL',
-      siteLocation: cntLoc || 'Canteiro Principal',
+      rateRule: cntRate.trim() || 'Faturamento por H/H aprovado sob diário',
+      costCenter: cntCc.trim() || 'CC-OBRA-GERAL',
+      siteLocation: cntLoc.trim() || 'Canteiro Principal',
       rateNormal: Number(cntRateNormal) || 0,
       rateExtra: Number(cntRateExtra) || 0,
       rateNight: Number(cntRateNight) || 0
@@ -275,19 +293,18 @@ export function RegistrationView({
     setCntRateNormal('115');
     setCntRateExtra('230');
     setCntRateNight('138');
-    alert('Contrato vinculado com sucesso!');
   };
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!usrName || !usrEmail) {
-      alert('Preencha o nome e e-mail do colaborador.');
+    if (!usrName.trim() || !usrEmail.trim()) {
+      notify('Preencha o nome e e-mail do colaborador.', 'error');
       return;
     }
     const payload: User = {
       id: `usr-${Date.now()}`,
-      name: usrName,
-      email: usrEmail,
+      name: usrName.trim(),
+      email: usrEmail.trim().toLowerCase(),
       role: usrRole,
       companyId: usrRole === 'contractor' ? usrCompId : undefined,
       active: true,
@@ -299,11 +316,11 @@ export function RegistrationView({
     setUsrName('');
     setUsrEmail('');
     setUsrPassword('123456');
-    alert('Usuário cadastrado com sucesso!');
   };
 
-  // Only Admin has permissions to create and manage setups
-  const isAdmin = currentUser.role === 'admin';
+  // Admin and Managers have permissions to create and manage setups
+  const isAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
+  const isSuperAdmin = currentUser.role === 'admin';
 
   return (
     <div className="space-y-6 animate-fadeIn" id="registration-main-view">
@@ -1056,16 +1073,25 @@ export function RegistrationView({
                               />
                             </td>
                             <td className="p-3">
-                              <span className="font-mono text-gray-500 block text-xs">{usr.email}</span>
-                              <div className="mt-1 flex items-center gap-1">
-                                <span className="text-[9px] text-gray-450 uppercase tracking-wider font-sans shrink-0">Senha:</span>
+                              <div className="space-y-1">
+                                <label className="text-[9px] text-gray-500 uppercase font-bold tracking-wider block">E-mail de Login:</label>
                                 <input
-                                  type="text"
-                                  value={editingUserPassword}
-                                  onChange={(e) => setEditingUserPassword(e.target.value)}
-                                  className="bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[10px] text-gray-700 w-24 font-mono outline-hidden"
-                                  placeholder="Nova Senha"
+                                  type="email"
+                                  value={editingUserEmail}
+                                  onChange={(e) => setEditingUserEmail(e.target.value)}
+                                  className="w-full bg-white border border-gray-300 rounded-lg px-2 text-xs font-mono text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-hidden py-1"
+                                  placeholder="email@empresa.com.br"
                                 />
+                                <div className="mt-1 flex items-center gap-1">
+                                  <span className="text-[9px] text-gray-500 uppercase font-bold tracking-wider font-sans shrink-0">Senha:</span>
+                                  <input
+                                    type="text"
+                                    value={editingUserPassword}
+                                    onChange={(e) => setEditingUserPassword(e.target.value)}
+                                    className="bg-white border border-gray-300 rounded px-1.5 py-0.5 text-[10px] text-gray-700 w-28 font-mono outline-hidden"
+                                    placeholder="Nova Senha"
+                                  />
+                                </div>
                               </div>
                             </td>
                             <td className="p-3">

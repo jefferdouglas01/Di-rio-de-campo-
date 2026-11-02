@@ -153,33 +153,13 @@ export function RdoFormView({
       setAdditionalRemarks(rdoToEdit.additionalRemarks || '');
       setAttachments([...rdoToEdit.attachments]);
     } else {
-      // Inception defaults
+      // Inception defaults - start completely clean with no pre-filled inputs
       const today = new Date().toISOString().split('T')[0];
       setDate(today);
-      
-      // If user is contractor, preset companyId
-      if (currentUser.role === 'contractor') {
-        const cId = currentUser.companyId || '';
-        setCompanyId(cId);
-        // Find first contract of this company in list
-        const cList = contracts.filter(c => c.companyId === cId);
-        if (cList.length > 0) {
-          setContractId(cList[0].id);
-          setSiteLocation(cList[0].siteLocation);
-        }
-      } else {
-        // Administrative defaults
-        if (companies.length > 0) {
-          setCompanyId(companies[0].id);
-          const cList = contracts.filter(c => c.companyId === companies[0].id);
-          if (cList.length > 0) {
-            setContractId(cList[0].id);
-            setSiteLocation(cList[0].siteLocation);
-          }
-        }
-      }
-
-      setResponsibleName(currentUser.name);
+      setCompanyId('');
+      setContractId('');
+      setSiteLocation('');
+      setResponsibleName('');
       setWeather('sol');
       setShift('diurno');
       setActivities('');
@@ -198,7 +178,7 @@ export function RdoFormView({
       setAdditionalRemarks('');
       setAttachments([]);
     }
-  }, [rdoToEdit, isEditing, currentUser, companies, contracts]);
+  }, [rdoToEdit, isEditing]);
 
   // Handle adding involved person
   const handleAddInvolvedPerson = (personName: string) => {
@@ -214,24 +194,18 @@ export function RdoFormView({
     setHseInvolved(hseInvolved.filter(p => p !== personName));
   };
 
-  // When company ID changes, filter the contracts list
+  // When company ID changes, clear contract & location so user selects manually
   const handleCompanyChange = (id: string) => {
     setCompanyId(id);
-    const subContracts = contracts.filter(c => c.companyId === id);
-    if (subContracts.length > 0) {
-      setContractId(subContracts[0].id);
-      setSiteLocation(subContracts[0].siteLocation);
-    } else {
-      setContractId('');
-      setSiteLocation('');
-    }
+    setContractId('');
+    setSiteLocation('');
   };
 
   const handleContractChange = (id: string) => {
     setContractId(id);
     const target = contracts.find(c => c.id === id);
-    if (target) {
-      setSiteLocation(target.siteLocation);
+    if (target && !siteLocation) {
+      setSiteLocation(target.siteLocation || '');
     }
   };
 
@@ -352,25 +326,36 @@ export function RdoFormView({
       return;
     }
     if (!companyId) {
-      alert('Por favor, selecione a empresa.');
+      alert('Por favor, selecione a empresa contratada.');
       return;
     }
     if (!contractId) {
       alert('Por favor, vincule um contrato.');
       return;
     }
-    if (!activities.trim()) {
-      alert('Inscreva o resumo de atividades executadas no dia.');
+    if (!responsibleName.trim()) {
+      alert('Por favor, informe o responsável pelo preenchimento.');
       return;
     }
-    if (workers.length === 0) {
-      alert('Adicione pelo menos um profissional na equipe para o cálculo do faturamento.');
+    if (!siteLocation.trim()) {
+      alert('Por favor, informe a frente de serviço / local de execução.');
       return;
     }
-    const emptyWorkers = workers.some(w => !w.name.trim() || !w.role.trim());
-    if (emptyWorkers) {
-      alert('Preencha os nomes e funções de todos os profissionais cadastrados na equipe.');
-      return;
+
+    if (isCommit) {
+      if (!activities.trim()) {
+        alert('Inscreva o resumo de atividades executadas no dia antes de enviar para validação.');
+        return;
+      }
+      if (workers.length === 0) {
+        alert('Adicione pelo menos um profissional na equipe para o cálculo do faturamento.');
+        return;
+      }
+      const emptyWorkers = workers.some(w => !w.name.trim() || !w.role.trim());
+      if (emptyWorkers) {
+        alert('Preencha os nomes e funções de todos os profissionais cadastrados na equipe.');
+        return;
+      }
     }
 
     // Determine status depending on whether we click "Salvar Rascunho" or "Enviar para Validação"
@@ -498,35 +483,29 @@ export function RdoFormView({
 
               {/* Responsible user input */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Responsável pelo Lançamento</label>
+                <label className="text-xs font-semibold text-gray-600">Responsável pelo Lançamento *</label>
                 <input
                   type="text"
                   value={responsibleName}
                   onChange={(e) => setResponsibleName(e.target.value)}
-                  placeholder="Nome do preenchedor"
-                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-800 outline-hidden focus:border-blue-500"
+                  placeholder="Nome do preenchedor responsável"
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-800 outline-hidden focus:border-blue-500 font-semibold"
                 />
               </div>
 
               {/* Company Selection */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Empresa Contratada</label>
-                {currentUser.role !== 'contractor' ? (
-                  <select
-                    value={companyId}
-                    onChange={(e) => handleCompanyChange(e.target.value)}
-                    className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-800 outline-hidden focus:border-blue-500"
-                  >
-                    <option value="">Selecione uma empresa</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="bg-gray-100 border border-gray-200 text-xs text-gray-600 rounded-lg p-2.5 font-medium truncate">
-                    {companies.find(c => c.id === companyId)?.name || 'Sua Empresa'}
-                  </div>
-                )}
+                <label className="text-xs font-semibold text-gray-600">Empresa Contratada *</label>
+                <select
+                  value={companyId}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-800 outline-hidden focus:border-blue-500 font-semibold"
+                >
+                  <option value="">-- Selecione a Empresa Contratada --</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Contract Selection */}
@@ -535,9 +514,16 @@ export function RdoFormView({
                 <select
                   value={contractId}
                   onChange={(e) => handleContractChange(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 text-xs rounded-lg p-2.5 text-gray-800 outline-hidden focus:border-blue-500 font-semibold"
+                  disabled={!companyId}
+                  className={`border text-xs rounded-lg p-2.5 outline-hidden font-semibold ${
+                    !companyId 
+                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
+                      : 'bg-gray-50 border-gray-200 text-gray-800 focus:border-blue-500'
+                  }`}
                 >
-                  <option value="">Selecione o contrato</option>
+                  <option value="">
+                    {!companyId ? '-- Selecione uma empresa primeiro --' : '-- Selecione o Contrato Vinculado --'}
+                  </option>
                   {contracts
                     .filter(c => c.companyId === companyId)
                     .map(c => (

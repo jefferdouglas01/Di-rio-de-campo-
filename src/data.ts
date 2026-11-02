@@ -13,6 +13,14 @@ export const INITIAL_USERS: User[] = [
     role: 'admin',
     active: true,
     password: 'admin' // Senha padrão para login inicial
+  },
+  {
+    id: 'usr-admin-jdsd',
+    name: 'Administrador (Gestor)',
+    email: 'jdsd38@gmail.com',
+    role: 'admin',
+    active: true,
+    password: 'admin'
   }
 ];
 
